@@ -136,7 +136,8 @@
 </div>
 
 <div class="card">
-  <h2>2. County owner records (OPRS) — homeowners, your delivery area</h2>
+  <h2 id="step2Head" style="cursor:pointer">2. County owner records (OPRS) — the manual route <span id="step2Arrow" style="float:right; font-size:13px; font-weight:600; color:#0f766e">▾ tap to open</span></h2>
+  <div id="step2Body" style="display:none">
   <p class="note" style="margin:0">Monmouth County's tax records list every property owner by town. Owners only, so renters will not show up here — the Suggest button in step 1 covers a lot of those. There is no ZIP search, so you check town by town and keep only results in your ZIPs: 07712, 07711 and 07723 (the same town can have other ZIPs too).</p>
   <div class="oprsbox">
     <p class="note" style="margin:0 0 6px">Owner Name to type into OPRS (their format is LAST, FIRST):</p>
@@ -153,6 +154,7 @@
   </div>
   <div id="districts"></div>
   <p class="note" style="margin-top:10px">Found one? Scroll back up to step 1 and put it in the "Found it?" fields — or use Copy Complete Address up there once it is filled in.</p>
+  </div>
 </div>
 
 <div class="card">
@@ -165,7 +167,7 @@
 </div>
 
 <p class="note">Privacy: a photo is read right here on your phone. Nothing is uploaded or stored. The searches open on the sites themselves, same as typing them in by hand.</p>
-<p class="ver">NA Finder v5</p>
+<p class="ver">NA Finder v6</p>
 
 <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
 <script>
@@ -264,6 +266,11 @@ $("copyOprsBtn").addEventListener("click", function(){
 });
 $("openOprsBtn").addEventListener("click", function(){
   window.location.href = "https://oprs.co.monmouth.nj.us/oprs/External.aspx?iId=12";
+});
+$("step2Head").addEventListener("click", function(){
+  var b = $("step2Body"), open = b.style.display !== "none";
+  b.style.display = open ? "none" : "block";
+  $("step2Arrow").textContent = open ? "▾ tap to open" : "▴ tap to close";
 });
 
 // ---------- Manual web searches ----------
@@ -717,13 +724,14 @@ function parseOwners(text){
       if(!/^\d{1,6}$/.test(toks[ti].t)) continue;
       if(!/[A-Za-z]/.test(toks[ti + 1].t)) continue;
       if(/^C\d+$/i.test(toks[ti + 1].t)) continue;
+      if(/^QFARM$/i.test(toks[ti + 1].t)) continue;
       locTok = ti;
     }
     if(locTok < 0) continue;
     var location = before.slice(toks[locTok].i).replace(/\s+/g, " ").trim();
     var after = ch.slice(classM.index + classM[0].length);
     var mailM = after.match(/\n\s*([A-Za-z ]+?),?\s+NJ\b/);
-    out.push({ location: location, owner: owner, detailUrl: urlM[1], mailCity: mailM ? smartCase(mailM[1].trim()) : "" });
+    out.push({ location: location, owner: owner, detailUrl: urlM[1], klass: classM[1], mailCity: mailM ? smartCase(mailM[1].trim()) : "" });
   }
   return out;
 }
@@ -745,11 +753,32 @@ function parseDetailZip(text){
   if(!m) return null;
   return { city: smartCase(m[1].replace(/[,\s]+$/, "").trim()), zip: m[2] };
 }
+function classLabel(k){
+  k = String(k || "");
+  if(k.charAt(0) === "2") return "Residential";
+  if(k.charAt(0) === "3") return "Farm";
+  if(k.charAt(0) === "4") return "Commercial / business";
+  if(k.indexOf("15") === 0) return "Tax-exempt";
+  return "";
+}
+function ownerNorm(o){ return String(o).toUpperCase().replace(/[^A-Z0-9]/g, ""); }
+function ownersUseButton(r, city, zip){
+  var use = document.createElement("button");
+  use.className = "go"; use.style.marginTop = "8px"; use.textContent = "Use this address";
+  use.addEventListener("click", function(){
+    $("f-found-street").value = smartCase(r.location);
+    $("f-found-city").value = city;
+    if(zip) $("f-found-zip").value = zip;
+    $("mineStatus").textContent = "Owner-record address filled in below the suggestion area. Hit Copy Complete Address when ready.";
+    $("copyBtn").scrollIntoView({ behavior: "smooth", block: "center" });
+  });
+  return use;
+}
 function streetKeyOf(s){
   var num = (String(s).match(/^\s*(\d+)/) || [])[1] || "";
   return num + "|" + streetCoreOf(s);
 }
-function renderOwners(confirmed, unconfirmed, outCount, totalFound, tooMany){
+function renderOwners(confirmed, unconfirmed, outZ, totalFound, tooMany){
   var box = $("ownersResult");
   box.innerHTML = "";
   var head = document.createElement("div");
@@ -760,16 +789,22 @@ function renderOwners(confirmed, unconfirmed, outCount, totalFound, tooMany){
   if(tooMany){
     var n1 = document.createElement("div");
     n1.style.cssText = "font-size:13.5px; color:#33415c; margin-top:6px";
-    n1.textContent = totalFound + " owners share that last name in your towns — too many to check one by one. Add a first name up top and tap Suggest again.";
+    n1.textContent = totalFound + " properties under that last name in your towns — too many to check one by one. Add a first name up top and tap Suggest again.";
     box.appendChild(n1);
     return;
   }
-  if(!list.length){
+  if(!list.length && !(outZ && outZ.length)){
     var n2 = document.createElement("div");
     n2.style.cssText = "font-size:13.5px; color:#33415c; margin-top:6px";
-    n2.textContent = "No owner match for that name in the county records" + (outCount ? " (" + outCount + " matched the name but the property is outside your ZIPs)" : "") + ". Now checking the web…";
+    n2.textContent = "No owner match for that name in the county records. Now checking the web…";
     box.appendChild(n2);
     return;
+  }
+  if(!list.length){
+    var n2b = document.createElement("div");
+    n2b.style.cssText = "font-size:13.5px; color:#33415c; margin-top:6px";
+    n2b.textContent = "Nothing inside your ZIPs — but this name owns property nearby (below). Checking the web too…";
+    box.appendChild(n2b);
   }
   list.forEach(function(r){
     var city = r.detail ? r.detail.city : r.district.city;
@@ -782,27 +817,30 @@ function renderOwners(confirmed, unconfirmed, outCount, totalFound, tooMany){
     card.appendChild(h);
     var ev = document.createElement("div");
     ev.style.cssText = "font-size:13px; color:#33415c; margin:4px 0";
-    ev.textContent = "Owner on record: " + r.owner + " — " + r.district.town + " (District " + r.district.code + ")" + (r.detail ? "" : ". The county detail page did not answer, so the ZIP could not be confirmed — double-check this one.");
+    ev.textContent = "Owner on record: " + r.owner + " — " + r.district.town + " (District " + r.district.code + ")" + (classLabel(r.klass) ? " · " + classLabel(r.klass) : "") + (r.detail ? "" : ". The county detail page did not answer, so the ZIP could not be confirmed — double-check this one.");
     card.appendChild(ev);
-    var use = document.createElement("button");
-    use.className = "go"; use.style.marginTop = "8px"; use.textContent = "Use this address";
-    (function(rec, c, z){
-      use.addEventListener("click", function(){
-        $("f-found-street").value = smartCase(rec.location);
-        $("f-found-city").value = c;
-        if(z) $("f-found-zip").value = z;
-        $("mineStatus").textContent = "Owner-record address filled in below the suggestion area. Hit Copy Complete Address when ready.";
-        $("copyBtn").scrollIntoView({ behavior: "smooth", block: "center" });
-      });
-    })(r, city, zip);
-    card.appendChild(use);
+    card.appendChild(ownersUseButton(r, city, zip));
     box.appendChild(card);
   });
-  if(outCount){
-    var n3 = document.createElement("div");
-    n3.style.cssText = "font-size:12.5px; color:#5a6b84; margin-top:6px";
-    n3.textContent = outCount + " other owner match" + (outCount > 1 ? "es were" : " was") + " skipped: the property is outside your ZIPs (07712 / 07711 / 07723).";
-    box.appendChild(n3);
+  if(outZ && outZ.length){
+    var oh = document.createElement("div");
+    oh.style.cssText = "font-size:14px; font-weight:700; margin-top:14px; color:#33415c";
+    oh.textContent = "Also under this name — outside your ZIPs (a family or business property can still be the lead you need):";
+    box.appendChild(oh);
+    outZ.forEach(function(r){
+      var row = document.createElement("div");
+      row.style.cssText = "border:1.5px solid #cbd5e1; border-left:6px solid #64748b; border-radius:14px; padding:10px 12px; margin-top:8px; background:#f8fafc";
+      var h = document.createElement("div");
+      h.style.cssText = "font-size:15.5px; font-weight:700";
+      h.textContent = smartCase(r.location) + ", " + r.detail.city + ", NJ " + r.detail.zip;
+      row.appendChild(h);
+      var ev = document.createElement("div");
+      ev.style.cssText = "font-size:13px; color:#33415c; margin:4px 0";
+      ev.textContent = "Owner on record: " + r.owner + " — " + r.district.town + (classLabel(r.klass) ? " · " + classLabel(r.klass) : "") + " · ZIP outside 07712 / 07711 / 07723";
+      row.appendChild(ev);
+      row.appendChild(ownersUseButton(r, r.detail.city, r.detail.zip));
+      box.appendChild(row);
+    });
   }
 }
 async function runOwners(){
@@ -846,39 +884,35 @@ async function runOwners(){
     box.appendChild(head);
     return;
   }
-  var tooMany = !first && all.length > 6;
-  if(tooMany){ renderOwners([], [], 0, all.length, true); return; }
   var seen = {}, cands = [];
   all.forEach(function(r){
     if(r.score < 2) return;
     if(!/^\d/.test(r.location)) return;
     if(wrongNum && wrongCore && streetKeyOf(r.location) === wrongNum + "|" + wrongCore) return;
-    var k = streetKeyOf(r.location) + "|" + r.owner;
+    var k = streetKeyOf(r.location) + "|" + ownerNorm(r.owner);
     if(seen[k]) return;
     seen[k] = true;
     cands.push(r);
   });
+  var tooMany = !first && cands.length > 8;
+  if(tooMany){ renderOwners([], [], [], cands.length, true); return; }
   cands.sort(function(a, b){
     if(b.score !== a.score) return b.score - a.score;
     return OWNER_DISTRICTS.indexOf(a.district) - OWNER_DISTRICTS.indexOf(b.district);
   });
-  var toCheck = cands.slice(0, 6);
+  var toCheck = cands.slice(0, 8);
   await Promise.all(toCheck.map(async function(r){
     var t = await fetchTextM(relayUrl(r.detailUrl), 12000);
     r.detail = t ? parseDetailZip(t) : null;
   }));
-  var confirmed = [], unconfirmed = [], outCount = 0;
+  var confirmed = [], unconfirmed = [], outZ = [];
   toCheck.forEach(function(r){
     if(r.detail){
-      if(OUR_ZIPS[r.detail.zip]) confirmed.push(r); else outCount++;
+      if(OUR_ZIPS[r.detail.zip]) confirmed.push(r); else outZ.push(r);
     } else { unconfirmed.push(r); }
   });
-  ownersFinalists = confirmed.concat(unconfirmed).slice(0, 4);
-  renderOwners(
-    ownersFinalists.filter(function(r){ return !!r.detail; }),
-    ownersFinalists.filter(function(r){ return !r.detail; }),
-    outCount, all.length, false
-  );
+  ownersFinalists = confirmed.slice(0, 6);
+  renderOwners(confirmed.slice(0, 6), unconfirmed.slice(0, 2), outZ.slice(0, 4), all.length, false);
   if(ownersFinalists.length){
     st.textContent = "County records found " + ownersFinalists.length + " possible address" + (ownersFinalists.length > 1 ? "es" : "") + ". Now checking the web to compare…";
   }
