@@ -82,9 +82,10 @@
   <p class="note" style="margin-top:8px">The wrong address helps in two ways: the miner will not suggest it back to you, and a near-miss (right street, wrong number) is a clue, not a dead end.</p>
 
   <button class="big" id="mineBtn" style="margin-top:12px">🤖 Suggest the address for me</button>
-  <p class="note" style="margin-top:6px">One tap. It hunts Bing and DuckDuckGo snippets for this name in your delivery area and suggests an address with its sources — it never fills anything in on its own. If it comes up empty, the county records in step 2 and the manual searches in step 3 are the fallback.</p>
+  <p class="note" style="margin-top:6px">One tap. <b>First</b> it searches the county owner records for all 7 of your towns and ZIP-confirms the matches, <b>then</b> it hunts the web (Bing + DuckDuckGo). Every suggestion shows its source and never fills anything in on its own.</p>
   <div id="mineStatus" class="note" style="margin-top:8px"></div>
   <div id="mineProg"><div id="mineProgFill"></div></div>
+  <div id="ownersResult"></div>
   <div id="mineResult"></div>
 
   <h2 style="margin-top:18px">Found it? It goes here</h2>
@@ -164,7 +165,7 @@
 </div>
 
 <p class="note">Privacy: a photo is read right here on your phone. Nothing is uploaded or stored. The searches open on the sites themselves, same as typing them in by hand.</p>
-<p class="ver">NA Finder v3</p>
+<p class="ver">NA Finder v4</p>
 
 <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
 <script>
@@ -315,6 +316,7 @@ $("clearBtn").addEventListener("click", function(){
   $("f-found-zip").value = "07712";
   $("copyStatus").textContent = ""; $("copyOprsStatus").textContent = "";
   $("mineResult").innerHTML = ""; $("mineStatus").textContent = "";
+  if($("ownersResult")) $("ownersResult").innerHTML = "";
   buildDistricts();
   onNameInput();
   $("status").textContent = "Cleared. Type the next name.";
@@ -664,6 +666,234 @@ function fetchTextM(url, ms){
     }).catch(function(){ clearTimeout(t); resolve(""); });
   });
 }
+// ---------- County owner records phase: runs FIRST when Suggest is tapped ----------
+// The county tax search behind OPRS (tax1.co.monmouth.nj.us, Microsystems
+// CGI) accepts a plain GET, so the same reader relay that mines Bing/DDG can
+// run a real owner-name search. Verified live Oct 30, 2026: surname searches
+// return full record lists through the relay, "LAST, FIRST" narrows, and the
+// m4.cgi detail pages expose "City State: CITY NJ ZIP" for the ZIP check.
+var OWNER_DISTRICTS = [
+  { code: "1337", town: "Ocean Township", city: "Ocean" },
+  { code: "1304", town: "Asbury Park", city: "Asbury Park" },
+  { code: "1349", town: "Tinton Falls", city: "Tinton Falls" },
+  { code: "1322", town: "Interlaken", city: "Interlaken" },
+  { code: "1302", town: "Allenhurst", city: "Allenhurst" },
+  { code: "1311", town: "Deal", city: "Deal" },
+  { code: "1335", town: "Neptune Township", city: "Neptune" }
+];
+var OUR_ZIPS = { "07712": true, "07711": true, "07723": true };
+var ownersFinalists = [];
+var ownersDataAsOf = "";
+function relayUrl(target){ return "https://r.jina.ai/" + target.replace(/&/g, "%26"); }
+function ownersSearchUrl(district, lastName){
+  return "https://tax1.co.monmouth.nj.us/cgi-bin/inf.cgi?ms_user=monm&passwd=&srch_type=1&select_cc=1301&district=" + district +
+    "&adv=2&out_type=2&ms_ln=100&p_loc=&owner=" + encodeURIComponent(String(lastName).toUpperCase()) + "&block=&lot=&qual=";
+}
+function parseOwners(text){
+  var out = [];
+  var body = String(text);
+  var mc = body.indexOf("Markdown Content:");
+  if(mc >= 0) body = body.slice(mc + "Markdown Content:".length);
+  var asof = body.match(/Data as of\s+([\d/]+)/);
+  if(asof) ownersDataAsOf = asof[1];
+  var chunks = body.split("[**More Info**]");
+  for(var i = 1; i < chunks.length; i++){
+    var ch = chunks[i];
+    var urlM = ch.match(/\((https:[^)]+)\)/);
+    var classM = ch.match(/Class:\s*(\S+)\s+([^\n]+)/);
+    if(!urlM || !classM) continue;
+    var owner = classM[2].replace(/\s+/g, " ").trim();
+    if(!owner) continue;
+    if(classM[1] === "1") continue; // Class 1 = vacant land, nobody to deliver to
+    var before = ch.slice(0, classM.index);
+    // Location starts at the LAST bare house-number token before "Class:"
+    // whose next token is a street-name word. Token scanning (not regex
+    // pairs) so block/lot/qual numbers cannot eat the real house number:
+    // "8 C1503 71 OLD ORCHARD LN" -> starts at 71; "37 10 BROWN PL" -> at 10.
+    var toks = [], tm, tokRe = /\S+/g;
+    while((tm = tokRe.exec(before)) !== null){ toks.push({ t: tm[0], i: tm.index }); }
+    var locTok = -1;
+    for(var ti = 0; ti < toks.length - 1; ti++){
+      if(!/^\d{1,6}$/.test(toks[ti].t)) continue;
+      if(!/[A-Za-z]/.test(toks[ti + 1].t)) continue;
+      if(/^C\d+$/i.test(toks[ti + 1].t)) continue;
+      locTok = ti;
+    }
+    if(locTok < 0) continue;
+    var location = before.slice(toks[locTok].i).replace(/\s+/g, " ").trim();
+    var after = ch.slice(classM.index + classM[0].length);
+    var mailM = after.match(/\n\s*([A-Za-z ]+?),?\s+NJ\b/);
+    out.push({ location: location, owner: owner, detailUrl: urlM[1], mailCity: mailM ? smartCase(mailM[1].trim()) : "" });
+  }
+  return out;
+}
+function ownerNameScore(owner, first){
+  var f = String(first || "").toUpperCase().trim();
+  if(!f) return 2;
+  var parts = String(owner).split(",");
+  var given = (parts[1] || "").toUpperCase();
+  var toks = given.replace(/[^A-Z ]/g, " ").split(/\s+/).filter(Boolean);
+  for(var i = 0; i < toks.length; i++){ if(toks[i] === f) return 3; }
+  for(var j = 0; j < toks.length; j++){ if(toks[j].charAt(0) === f.charAt(0)) return 2; }
+  return 0;
+}
+function parseDetailZip(text){
+  var body = String(text);
+  var mc = body.indexOf("Markdown Content:");
+  if(mc >= 0) body = body.slice(mc + "Markdown Content:".length);
+  var m = body.match(/City State:\s*([A-Za-z ]+?)\s+NJ\s+(\d{5})/);
+  if(!m) return null;
+  return { city: smartCase(m[1].trim()), zip: m[2] };
+}
+function streetKeyOf(s){
+  var num = (String(s).match(/^\s*(\d+)/) || [])[1] || "";
+  return num + "|" + streetCoreOf(s);
+}
+function renderOwners(confirmed, unconfirmed, outCount, totalFound, tooMany){
+  var box = $("ownersResult");
+  box.innerHTML = "";
+  var head = document.createElement("div");
+  head.style.cssText = "font-size:15.5px; font-weight:700; margin-top:14px; color:#7c2d12";
+  head.textContent = "🏠 County owner records" + (ownersDataAsOf ? " (county data as of " + ownersDataAsOf + ")" : "");
+  box.appendChild(head);
+  var list = confirmed.concat(unconfirmed);
+  if(tooMany){
+    var n1 = document.createElement("div");
+    n1.style.cssText = "font-size:13.5px; color:#33415c; margin-top:6px";
+    n1.textContent = totalFound + " owners share that last name in your towns — too many to check one by one. Add a first name up top and tap Suggest again.";
+    box.appendChild(n1);
+    return;
+  }
+  if(!list.length){
+    var n2 = document.createElement("div");
+    n2.style.cssText = "font-size:13.5px; color:#33415c; margin-top:6px";
+    n2.textContent = "No owner match for that name in the county records" + (outCount ? " (" + outCount + " matched the name but the property is outside your ZIPs)" : "") + ". Now checking the web…";
+    box.appendChild(n2);
+    return;
+  }
+  list.forEach(function(r){
+    var city = r.detail ? r.detail.city : r.district.city;
+    var zip = r.detail ? r.detail.zip : "";
+    var card = document.createElement("div");
+    card.style.cssText = "border:1.5px solid #fdba74; border-left:6px solid #ea580c; border-radius:16px; padding:14px; margin-top:10px; background:linear-gradient(180deg,#fff7ed,#ffffff); box-shadow:0 8px 18px rgba(234,88,12,.12)";
+    var h = document.createElement("div");
+    h.style.cssText = "font-size:17px; font-weight:700";
+    h.textContent = smartCase(r.location) + ", " + city + ", NJ" + (zip ? " " + zip : " (ZIP not confirmed)");
+    card.appendChild(h);
+    var ev = document.createElement("div");
+    ev.style.cssText = "font-size:13px; color:#33415c; margin:4px 0";
+    ev.textContent = "Owner on record: " + r.owner + " — " + r.district.town + " (District " + r.district.code + ")" + (r.detail ? "" : ". The county detail page did not answer, so the ZIP could not be confirmed — double-check this one.");
+    card.appendChild(ev);
+    var use = document.createElement("button");
+    use.className = "go"; use.style.marginTop = "8px"; use.textContent = "Use this address";
+    (function(rec, c, z){
+      use.addEventListener("click", function(){
+        $("f-found-street").value = smartCase(rec.location);
+        $("f-found-city").value = c;
+        if(z) $("f-found-zip").value = z;
+        $("mineStatus").textContent = "Owner-record address filled in below the suggestion area. Hit Copy Complete Address when ready.";
+        $("copyBtn").scrollIntoView({ behavior: "smooth", block: "center" });
+      });
+    })(r, city, zip);
+    card.appendChild(use);
+    box.appendChild(card);
+  });
+  if(outCount){
+    var n3 = document.createElement("div");
+    n3.style.cssText = "font-size:12.5px; color:#5a6b84; margin-top:6px";
+    n3.textContent = outCount + " other owner match" + (outCount > 1 ? "es were" : " was") + " skipped: the property is outside your ZIPs (07712 / 07711 / 07723).";
+    box.appendChild(n3);
+  }
+}
+async function runOwners(){
+  var box = $("ownersResult");
+  box.innerHTML = "";
+  ownersFinalists = [];
+  ownersDataAsOf = "";
+  var last = $("f-last").value.trim();
+  if(!last) return;
+  var first = $("f-first").value.trim();
+  var wrong = $("f-wrong").value.trim();
+  var wrongNum = (wrong.match(/^\s*(\d+)/) || [])[1] || "";
+  var wrongCore = wrong ? streetCoreOf(wrong) : "";
+  var st = $("mineStatus");
+  var prog = $("mineProg"), progFill = $("mineProgFill");
+  if(prog) prog.style.display = "block";
+  if(progFill) progFill.style.width = "0%";
+  st.classList.add("working");
+  st.textContent = "Checking the county owner records first — all 7 towns…";
+  var all = [], answeredAny = false, settled = 0;
+  async function oneDistrict(d){
+    var txt = await fetchTextM(relayUrl(ownersSearchUrl(d.code, last)), 15000);
+    settled++;
+    if(progFill) progFill.style.width = Math.round(settled / OWNER_DISTRICTS.length * 100) + "%";
+    if(!txt || txt.length < 200) return;
+    answeredAny = true;
+    parseOwners(txt).forEach(function(r){
+      r.district = d;
+      r.score = ownerNameScore(r.owner, first);
+      all.push(r);
+    });
+  }
+  await Promise.all(OWNER_DISTRICTS.slice(0, 4).map(oneDistrict));
+  await Promise.all(OWNER_DISTRICTS.slice(4).map(oneDistrict));
+  if(prog) prog.style.display = "none";
+  st.classList.remove("working");
+  if(!answeredAny){
+    var head = document.createElement("div");
+    head.style.cssText = "font-size:13.5px; color:#33415c; margin-top:14px";
+    head.textContent = "🏠 County owner records did not answer this time (the relay rate-limits when busy). The web hunt is running below, and step 2 is the manual county route.";
+    box.appendChild(head);
+    return;
+  }
+  var tooMany = !first && all.length > 6;
+  if(tooMany){ renderOwners([], [], 0, all.length, true); return; }
+  var seen = {}, cands = [];
+  all.forEach(function(r){
+    if(r.score < 2) return;
+    if(!/^\d/.test(r.location)) return;
+    if(wrongNum && wrongCore && streetKeyOf(r.location) === wrongNum + "|" + wrongCore) return;
+    var k = streetKeyOf(r.location) + "|" + r.owner;
+    if(seen[k]) return;
+    seen[k] = true;
+    cands.push(r);
+  });
+  cands.sort(function(a, b){
+    if(b.score !== a.score) return b.score - a.score;
+    return OWNER_DISTRICTS.indexOf(a.district) - OWNER_DISTRICTS.indexOf(b.district);
+  });
+  var toCheck = cands.slice(0, 6);
+  await Promise.all(toCheck.map(async function(r){
+    var t = await fetchTextM(relayUrl(r.detailUrl), 12000);
+    r.detail = t ? parseDetailZip(t) : null;
+  }));
+  var confirmed = [], unconfirmed = [], outCount = 0;
+  toCheck.forEach(function(r){
+    if(r.detail){
+      if(OUR_ZIPS[r.detail.zip]) confirmed.push(r); else outCount++;
+    } else { unconfirmed.push(r); }
+  });
+  ownersFinalists = confirmed.concat(unconfirmed).slice(0, 4);
+  renderOwners(
+    ownersFinalists.filter(function(r){ return !!r.detail; }),
+    ownersFinalists.filter(function(r){ return !r.detail; }),
+    outCount, all.length, false
+  );
+  if(ownersFinalists.length){
+    st.textContent = "County records found " + ownersFinalists.length + " possible address" + (ownersFinalists.length > 1 ? "es" : "") + ". Now checking the web to compare…";
+  }
+}
+async function runSuggest(){
+  $("mineResult").innerHTML = "";
+  if(!fullName() || !$("f-last").value.trim()){
+    $("mineStatus").textContent = "Type the name in step 1 first, then I can go looking.";
+    return;
+  }
+  $("mineBtn").disabled = true;
+  try { await runOwners(); } catch(e){}
+  await runMiner();
+}
+
 async function runMiner(){
   var name = fullName();
   var btn = $("mineBtn"), st = $("mineStatus"), out = $("mineResult");
@@ -776,6 +1006,16 @@ async function runMiner(){
     alt.textContent = "Another candidate showed up: " + cands[1].street + (cands[1].city ? ", " + cands[1].city : "") + " (" + Object.keys(cands[1].domains).length + " source). Mixed signals, extra reason to check — could be an old address.";
     card.appendChild(alt);
   }
+  var agreesWithOwners = false;
+  for(var oi = 0; oi < ownersFinalists.length; oi++){
+    if(streetKeyOf(ownersFinalists[oi].location) === streetKeyOf(top.street)){ agreesWithOwners = true; break; }
+  }
+  if(agreesWithOwners){
+    var ag = document.createElement("div");
+    ag.style.cssText = "font-size:13.5px; font-weight:600; color:#065f46; margin-top:6px";
+    ag.textContent = "This is the same address as the county owner record above — two independent sources agree, which makes it a strong bet.";
+    card.appendChild(ag);
+  }
   if(wrong){
     var wnote = document.createElement("div");
     wnote.style.cssText = "font-size:13px; color:#33415c; margin-top:6px";
@@ -801,7 +1041,7 @@ async function runMiner(){
   card.appendChild(row);
   out.appendChild(card);
 }
-$("mineBtn").addEventListener("click", runMiner);
+$("mineBtn").addEventListener("click", runSuggest);
 refreshOprs();
 buildSearches();
 </script>
