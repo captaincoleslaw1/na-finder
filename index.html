@@ -81,45 +81,13 @@
   <input id="f-wrong" autocomplete="off" placeholder="Only if it has one, e.g. 123 Main St">
   <p class="note" style="margin-top:8px">The wrong address helps in two ways: the miner will not suggest it back to you, and a near-miss (right street, wrong number) is a clue, not a dead end.</p>
 
-  <button class="ghost" id="scanToggleBtn">📷 Or scan the letter with the camera instead</button>
-  <div id="scanArea" style="display:none">
-    <p class="note" style="margin:0 0 8px">Line up <b>just the address block</b> in the yellow box. It fills the name, plus the printed address as the wrong address if there is one.</p>
-    <div id="camWrap" style="display:none">
-      <div class="videobox">
-        <video id="cam" playsinline muted style="width:100%; border-radius:10px; background:#000; display:block"></video>
-        <div id="guide"></div>
-        <button class="closeCam" id="stopCamBtn">Close</button>
-      </div>
-      <button class="big" id="captureBtn" style="margin-top:8px">Capture</button>
-    </div>
-    <button class="big" id="liveBtn">Open Camera</button>
-    <input type="file" id="photo" accept="image/*" style="display:none">
-    <button class="ghost" id="photoBtn">Use a photo from the library instead</button>
-    <img id="preview" alt="">
-  </div>
-  <div id="status">Typing is the fast path. The camera stays off until you ask for it.</div>
-  <button class="ghost" id="sampleBtn">Fill in a sample name to test</button>
-  <button class="ghost" id="clearBtn">Start over (new letter)</button>
-</div>
+  <button class="big" id="mineBtn" style="margin-top:12px">🤖 Suggest the address for me</button>
+  <p class="note" style="margin-top:6px">One tap. It hunts Bing and DuckDuckGo snippets for this name in your delivery area and suggests an address with its sources — it never fills anything in on its own. If it comes up empty, the county records in step 2 and the manual searches in step 3 are the fallback.</p>
+  <div id="mineStatus" class="note" style="margin-top:8px"></div>
+  <div id="mineProg"><div id="mineProgFill"></div></div>
+  <div id="mineResult"></div>
 
-<div class="card">
-  <h2>2. County owner records (OPRS) — homeowners, your delivery area</h2>
-  <p class="note" style="margin:0">Monmouth County's tax records list every property owner by town. Owners only, so renters will not show up here — that is what step 3 is for. There is no ZIP search, so you check town by town and keep only results in your ZIPs: 07712, 07711 and 07723 (the same town can have other ZIPs too).</p>
-  <div class="oprsbox">
-    <p class="note" style="margin:0 0 6px">Owner Name to type into OPRS (their format is LAST, FIRST):</p>
-    <div class="oprsname" id="oprsName">— type a name above —</div>
-    <button class="big orange" id="copyOprsBtn" style="margin-top:10px">Copy Name for OPRS</button>
-    <div id="copyOprsStatus" style="font-size:14px; margin-top:8px; color:#33415c"></div>
-    <button class="big" id="openOprsBtn" style="margin-top:6px">Open OPRS</button>
-    <ol class="steps">
-      <li>In OPRS: Database = <b>Current Owners</b>, County = <b>Monmouth</b></li>
-      <li><b>Pick the District FIRST</b>, then paste the Owner Name, then Submit. Changing the town can wipe the name and dump the whole town on you.</li>
-      <li>Read the <b>Location</b> column. Tap <b>More Info</b> to confirm the ZIP is one of yours: 07712, 07711 or 07723.</li>
-      <li>Check each town off below as you finish it.</li>
-    </ol>
-  </div>
-  <div id="districts"></div>
-  <h2 style="margin-top:18px">Found it in OPRS? Put it here</h2>
+  <h2 style="margin-top:18px">Found it? It goes here</h2>
   <label for="f-found-street">Street address found</label>
   <input id="f-found-street" autocomplete="off" placeholder="123 Main St Apt 4">
   <div class="row">
@@ -144,15 +112,51 @@
   </div>
   <button class="go" id="copyBtn">Copy Complete Address</button>
   <div id="copyStatus" style="font-size:14px; margin-top:8px; color:#33415c"></div>
+
+  <button class="ghost" id="scanToggleBtn">📷 Or scan the letter with the camera instead</button>
+  <div id="scanArea" style="display:none">
+    <p class="note" style="margin:0 0 8px">Line up <b>just the address block</b> in the yellow box. It fills the name, plus the printed address as the wrong address if there is one.</p>
+    <div id="camWrap" style="display:none">
+      <div class="videobox">
+        <video id="cam" playsinline muted style="width:100%; border-radius:10px; background:#000; display:block"></video>
+        <div id="guide"></div>
+        <button class="closeCam" id="stopCamBtn">Close</button>
+      </div>
+      <button class="big" id="captureBtn" style="margin-top:8px">Capture</button>
+    </div>
+    <button class="big" id="liveBtn">Open Camera</button>
+    <input type="file" id="photo" accept="image/*" style="display:none">
+    <button class="ghost" id="photoBtn">Use a photo from the library instead</button>
+    <img id="preview" alt="">
+  </div>
+  <div id="status">Typing is the fast path. The camera stays off until you ask for it.</div>
+  <button class="ghost" id="sampleBtn">Fill in a sample name to test</button>
+  <button class="ghost" id="clearBtn">Start over (new letter)</button>
 </div>
 
 <div class="card">
-  <h2>3. No luck in OPRS? Search the web</h2>
-  <p class="note" style="margin:0 0 4px">People-search sites cover renters and recent movers that the tax records miss. The miner reads Bing and DuckDuckGo snippets and suggests an address — it never fills anything in on its own.</p>
-  <button class="big" id="mineBtn">🤖 Suggest the address for me</button>
-  <div id="mineStatus" class="note" style="margin-top:8px"></div>
-  <div id="mineProg"><div id="mineProgFill"></div></div>
-  <div id="mineResult"></div>
+  <h2>2. County owner records (OPRS) — homeowners, your delivery area</h2>
+  <p class="note" style="margin:0">Monmouth County's tax records list every property owner by town. Owners only, so renters will not show up here — the Suggest button in step 1 covers a lot of those. There is no ZIP search, so you check town by town and keep only results in your ZIPs: 07712, 07711 and 07723 (the same town can have other ZIPs too).</p>
+  <div class="oprsbox">
+    <p class="note" style="margin:0 0 6px">Owner Name to type into OPRS (their format is LAST, FIRST):</p>
+    <div class="oprsname" id="oprsName">— type a name above —</div>
+    <button class="big orange" id="copyOprsBtn" style="margin-top:10px">Copy Name for OPRS</button>
+    <div id="copyOprsStatus" style="font-size:14px; margin-top:8px; color:#33415c"></div>
+    <button class="big" id="openOprsBtn" style="margin-top:6px">Open OPRS</button>
+    <ol class="steps">
+      <li>In OPRS: Database = <b>Current Owners</b>, County = <b>Monmouth</b></li>
+      <li><b>Pick the District FIRST</b>, then paste the Owner Name, then Submit. Changing the town can wipe the name and dump the whole town on you.</li>
+      <li>Read the <b>Location</b> column. Tap <b>More Info</b> to confirm the ZIP is one of yours: 07712, 07711 or 07723.</li>
+      <li>Check each town off below as you finish it.</li>
+    </ol>
+  </div>
+  <div id="districts"></div>
+  <p class="note" style="margin-top:10px">Found one? Scroll back up to step 1 and put it in the "Found it?" fields — or use Copy Complete Address up there once it is filled in.</p>
+</div>
+
+<div class="card">
+  <h2>3. Still stuck? Search the web by hand</h2>
+  <p class="note" style="margin:0 0 4px">The automatic Suggest hunt lives up in step 1. If it and OPRS both came up empty, these are the same searches done manually — people-search sites cover renters and recent movers that the tax records miss.</p>
   <div id="searches">
     <p class="note" style="margin-top:12px">Once a name is typed above, manual search buttons appear here, already filled in.</p>
   </div>
@@ -160,7 +164,7 @@
 </div>
 
 <p class="note">Privacy: a photo is read right here on your phone. Nothing is uploaded or stored. The searches open on the sites themselves, same as typing them in by hand.</p>
-<p class="ver">NA Finder v2</p>
+<p class="ver">NA Finder v3</p>
 
 <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
 <script>
@@ -304,7 +308,7 @@ $("sampleBtn").addEventListener("click", function(){
   $("f-last").value = "Laskin";
   $("f-wrong").value = "";
   onNameInput();
-  $("status").textContent = "Sample filled in. Copy the OPRS name, or run the miner in step 3 to see how it behaves.";
+  $("status").textContent = "Sample filled in. Tap Suggest the address for me right here to see how it behaves, or copy the OPRS name in step 2.";
 });
 $("clearBtn").addEventListener("click", function(){
   ["f-first","f-last","f-wrong","f-found-street","f-found-city"].forEach(function(id){ $(id).value = ""; });
@@ -322,7 +326,7 @@ $("copyBtn").addEventListener("click", function(){
   var name = fullName();
   var street = $("f-found-street").value.trim();
   var city = smartCase($("f-found-city").value.trim()), zip = $("f-found-zip").value.trim() || "07712";
-  if(!name || !street){ $("copyStatus").textContent = "Need the name (step 1) and the street found (step 2 or 3) first."; return; }
+  if(!name || !street){ $("copyStatus").textContent = "Need the name (top) and a street address in the Found field first."; return; }
   var full = name + "\n" + street + "\n" + city + ", NJ " + zip;
   copyText(full, $("copyStatus"), "Copied:\n" + full);
 });
@@ -429,7 +433,7 @@ function fillLetter(best, bestScore){
   if(best.street) $("f-wrong").value = best.street;
   onNameInput();
   $("status").classList.remove("working");
-  $("status").textContent = "Read: " + best.name + (best.street ? ". The printed address went into the wrong-address field — fix it if the scan slipped." : ". No street was printed, which is the whole problem this app solves.") + " Check the name, then head to step 2.";
+  $("status").textContent = "Read: " + best.name + (best.street ? ". The printed address went into the wrong-address field — fix it if the scan slipped." : ". No street was printed, which is the whole problem this app solves.") + " Check the name, then tap Suggest the address for me.";
 }
 async function ocrSource(source, sw, sh, tight){
   $("status").classList.add("working"); $("status").textContent = "Reading…";
@@ -741,8 +745,8 @@ async function runMiner(){
   var cands = rawCands.filter(function(c){ return c.score >= 2; });
   if(!cands.length){
     st.textContent = rawCands.length
-      ? "Only faint single mentions turned up for " + loose + " in your delivery area, not enough to suggest in good faith. Work the buttons below, and do not forget OPRS in step 2." + checkedNote
-      : "No address turned up in the snippets for " + loose + " in your delivery area (07712, 07711, 07723). That happens, especially for renters with thin web footprints. Work the buttons below." + checkedNote;
+      ? "Only faint single mentions turned up for " + loose + " in your delivery area, not enough to suggest in good faith. Try OPRS in step 2, then the manual buttons in step 3." + checkedNote
+      : "No address turned up in the snippets for " + loose + " in your delivery area (07712, 07711, 07723). That happens, especially for renters with thin web footprints. Try OPRS in step 2, then the manual buttons in step 3." + checkedNote;
     return;
   }
   var top = cands[0];
@@ -787,7 +791,7 @@ async function runMiner(){
     if(top.city) $("f-found-city").value = top.city;
     $("f-found-zip").value = top.zip || "07712";
     out.innerHTML = "";
-    st.textContent = "Filled in at the bottom of step 2. Hit Copy Complete Address when ready.";
+    st.textContent = "Filled in right below the suggestion. Hit Copy Complete Address when ready.";
     $("copyBtn").scrollIntoView({ behavior: "smooth", block: "center" });
   });
   var dis = document.createElement("button");
