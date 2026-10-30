@@ -1,0 +1,792 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="NA Finder">
+<title>NA Finder</title>
+<style>
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; margin: 0; padding: 12px; background: linear-gradient(180deg, #d9e5f4 0, #edf2f9 190px, #f4f6fa 100%); background-attachment: fixed; color: #14213d; }
+  .hero { background: linear-gradient(135deg, #0a1c33 0%, #16407c 58%, #7c2d12 135%); color: #fff; border-radius: 20px; padding: 16px 18px 14px; margin-bottom: 12px; box-shadow: 0 10px 24px rgba(10,28,51,.28); }
+  .hero h1 { font-size: 24px; margin: 0; letter-spacing: .2px; }
+  .hero .sub { color: #c9d9f2; font-size: 13.5px; margin: 4px 0 0; }
+  .card { background: #fff; border-radius: 18px; padding: 14px; margin-bottom: 12px; box-shadow: 0 8px 20px rgba(15,32,64,.08); border: 1px solid rgba(15,32,64,.05); }
+  .card h2 { font-size: 15.5px; margin: 0 0 8px; color: #0f2440; letter-spacing: .2px; }
+  button { font: inherit; border: 0; border-radius: 14px; cursor: pointer; }
+  .big { display: block; width: 100%; padding: 14px; font-size: 18px; font-weight: 600; background: linear-gradient(180deg, #3b82f6, #0b5fff); color: #fff; box-shadow: 0 6px 14px rgba(11,95,255,.30); transition: transform .06s ease; }
+  .big:active { transform: scale(.985); }
+  .big.orange { background: linear-gradient(180deg, #fb923c, #ea580c); box-shadow: 0 6px 14px rgba(234,88,12,.30); }
+  #mineBtn { background: linear-gradient(180deg, #2dd4bf, #0f766e); box-shadow: 0 6px 14px rgba(15,118,110,.32); }
+  #mineBtn:disabled { opacity: .9; animation: btnpulse 1.15s ease-in-out infinite; }
+  @keyframes btnpulse { 0%,100% { box-shadow: 0 6px 14px rgba(15,118,110,.30); } 50% { box-shadow: 0 6px 22px rgba(20,184,166,.65); } }
+  #status { min-height: 20px; font-size: 14px; color: #33415c; margin-top: 10px; white-space: pre-wrap; }
+  label { display: block; font-size: 12.5px; font-weight: 600; color: #64748b; letter-spacing: .3px; margin: 10px 0 4px; }
+  input { width: 100%; font: inherit; font-size: 17px; padding: 11px; border: 1.5px solid #ccd7e6; border-radius: 12px; background: #fcfdff; }
+  input:focus { outline: none; border-color: #0b5fff; box-shadow: 0 0 0 4px rgba(11,95,255,.15); background: #fff; }
+  .row { display: flex; gap: 10px; }
+  .row > div { flex: 1; }
+  .search-btn { display: block; width: 100%; text-align: left; padding: 14px; margin-top: 10px; font-size: 17px; font-weight: 600; background: #fff; color: #0b3d91; border: 1.5px solid #d7e1ef; border-radius: 13px; box-shadow: 0 2px 6px rgba(15,32,64,.05); }
+  .search-btn small { display: block; font-weight: 400; font-size: 13px; color: #5a6b84; margin-top: 2px; }
+  .search-btn:active { background: #eef4ff; }
+  .search-btn.primary { background: linear-gradient(180deg, #3b82f6, #0b5fff); color: #fff; border-color: #0b5fff; font-size: 19px; box-shadow: 0 6px 14px rgba(11,95,255,.28); }
+  .search-btn.primary small { color: #d7e5ff; }
+  .search-btn.done { opacity: .45; }
+  .go { display: block; width: 100%; padding: 14px; margin-top: 12px; font-size: 17px; font-weight: 600; background: linear-gradient(180deg, #22c55e, #15803d); color: #fff; border-radius: 14px; box-shadow: 0 6px 14px rgba(21,128,61,.30); }
+  .ghost { display: block; width: 100%; padding: 11px; margin-top: 10px; font-size: 15px; font-weight: 600; background: none; color: #0b5fff; }
+  .note { font-size: 13px; color: #5a6b84; line-height: 1.45; }
+  .videobox { position: relative; }
+  #guide { position: absolute; left: 4%; top: 9%; width: 92%; height: 52%; border: 3px solid #ffd60a; border-radius: 12px; background: rgba(255,214,10,.07); pointer-events: none; }
+  #cam { height: 34vh; object-fit: cover; }
+  .closeCam { position: absolute; top: 8px; right: 8px; background: rgba(0,0,0,.55); color: #fff; padding: 6px 10px; font-size: 13px; border-radius: 9px; }
+  .ver { text-align: center; color: #8494ab; font-size: 12px; margin: 18px 0 6px; }
+  img#preview { width: 100%; max-height: 110px; object-fit: cover; border-radius: 14px; margin-top: 10px; display: none; }
+  .working::before { content: ""; display: inline-block; width: 15px; height: 15px; margin-right: 8px; vertical-align: -2px; border-radius: 50%; border: 3px solid #bcd2f5; border-top-color: #0b5fff; animation: spin .8s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  #mineStatus.working { display: flex; align-items: center; gap: 9px; background: #ecfdf5; border: 1px solid #99f6e4; color: #065f46; padding: 10px 12px; border-radius: 12px; font-weight: 600; font-size: 14px; }
+  #mineStatus.working::before { content: ""; flex: 0 0 16px; width: 16px; height: 16px; border-radius: 50%; border: 3px solid #99f6e4; border-top-color: #0f766e; animation: spin .8s linear infinite; }
+  #mineStatus.working::after { content: "\23F3"; margin-left: auto; font-size: 18px; animation: hgflip 1.6s ease-in-out infinite; }
+  @keyframes hgflip { 0%, 55% { transform: rotate(0deg); } 75%, 100% { transform: rotate(180deg); } }
+  #mineProg { display: none; height: 6px; background: #dce6f2; border-radius: 99px; margin-top: 8px; overflow: hidden; }
+  #mineProgFill { height: 100%; width: 0; background: linear-gradient(90deg, #2dd4bf, #0f766e); border-radius: 99px; transition: width .45s ease; }
+  .oprsbox { background: #fff7ed; border: 1.5px solid #fed7aa; border-radius: 14px; padding: 12px; margin-top: 10px; }
+  .oprsname { font-size: 20px; font-weight: 700; letter-spacing: .4px; color: #7c2d12; text-align: center; padding: 8px 4px; background: #fff; border: 1.5px dashed #fb923c; border-radius: 10px; word-break: break-word; }
+  .district { display: flex; align-items: flex-start; gap: 10px; width: 100%; text-align: left; background: #fff; border: 1.5px solid #d7e1ef; border-radius: 13px; padding: 12px; margin-top: 9px; font-size: 16px; font-weight: 600; color: #0f2440; }
+  .district small { display: block; font-weight: 400; font-size: 12.5px; color: #5a6b84; margin-top: 2px; line-height: 1.4; }
+  .district .box { flex: 0 0 26px; width: 26px; height: 26px; border: 2px solid #94a3b8; border-radius: 8px; margin-top: 1px; text-align: center; line-height: 22px; font-size: 17px; color: #15803d; background: #fff; }
+  .district.done { opacity: .55; }
+  .district.done .box { background: #dcfce7; border-color: #15803d; }
+  .district .code { margin-left: auto; flex: 0 0 auto; font-size: 12px; font-weight: 700; color: #9a3412; background: #ffedd5; border-radius: 99px; padding: 3px 8px; }
+  ol.steps { margin: 8px 0 0; padding-left: 20px; font-size: 13.5px; color: #33415c; line-height: 1.55; }
+</style>
+</head>
+<body>
+
+<div class="hero"><h1>🏠 NA Finder</h1><p class="sub">NA: No Address. Letter has a name but no address, or the wrong one? Type the name, check the county owner records, then let the web miner try.</p></div>
+
+<div class="card">
+  <h2>1. Who is the letter for?</h2>
+  <div class="row">
+    <div>
+      <label for="f-first">First name</label>
+      <input id="f-first" autocomplete="off" placeholder="Jane">
+    </div>
+    <div>
+      <label for="f-last">Last name</label>
+      <input id="f-last" autocomplete="off" placeholder="Doe">
+    </div>
+  </div>
+  <label for="f-wrong">Wrong address printed on it (optional)</label>
+  <input id="f-wrong" autocomplete="off" placeholder="Only if it has one, e.g. 123 Main St">
+  <p class="note" style="margin-top:8px">The wrong address helps in two ways: the miner will not suggest it back to you, and a near-miss (right street, wrong number) is a clue, not a dead end.</p>
+
+  <button class="ghost" id="scanToggleBtn">📷 Or scan the letter with the camera instead</button>
+  <div id="scanArea" style="display:none">
+    <p class="note" style="margin:0 0 8px">Line up <b>just the address block</b> in the yellow box. It fills the name, plus the printed address as the wrong address if there is one.</p>
+    <div id="camWrap" style="display:none">
+      <div class="videobox">
+        <video id="cam" playsinline muted style="width:100%; border-radius:10px; background:#000; display:block"></video>
+        <div id="guide"></div>
+        <button class="closeCam" id="stopCamBtn">Close</button>
+      </div>
+      <button class="big" id="captureBtn" style="margin-top:8px">Capture</button>
+    </div>
+    <button class="big" id="liveBtn">Open Camera</button>
+    <input type="file" id="photo" accept="image/*" style="display:none">
+    <button class="ghost" id="photoBtn">Use a photo from the library instead</button>
+    <img id="preview" alt="">
+  </div>
+  <div id="status">Typing is the fast path. The camera stays off until you ask for it.</div>
+  <button class="ghost" id="sampleBtn">Fill in a sample name to test</button>
+  <button class="ghost" id="clearBtn">Start over (new letter)</button>
+</div>
+
+<div class="card">
+  <h2>2. County owner records (OPRS) — homeowners, 07712 area</h2>
+  <p class="note" style="margin:0">Monmouth County's tax records list every property owner by town. Owners only, so renters will not show up here — that is what step 3 is for. There is no ZIP search, so you check town by town and keep only the 07712 results (same town can have other ZIPs too).</p>
+  <div class="oprsbox">
+    <p class="note" style="margin:0 0 6px">Owner Name to type into OPRS (their format is LAST, FIRST):</p>
+    <div class="oprsname" id="oprsName">— type a name above —</div>
+    <button class="big orange" id="copyOprsBtn" style="margin-top:10px">Copy Name for OPRS</button>
+    <div id="copyOprsStatus" style="font-size:14px; margin-top:8px; color:#33415c"></div>
+    <button class="big" id="openOprsBtn" style="margin-top:6px">Open OPRS</button>
+    <ol class="steps">
+      <li>In OPRS: Database = <b>Current Owners</b>, County = <b>Monmouth</b></li>
+      <li><b>Pick the District FIRST</b>, then paste the Owner Name, then Submit. Changing the town can wipe the name and dump the whole town on you.</li>
+      <li>Read the <b>Location</b> column. Tap <b>More Info</b> to confirm the ZIP is 07712.</li>
+      <li>Check each town off below as you finish it.</li>
+    </ol>
+  </div>
+  <div id="districts"></div>
+  <h2 style="margin-top:18px">Found it in OPRS? Put it here</h2>
+  <label for="f-found-street">Street address found</label>
+  <input id="f-found-street" autocomplete="off" placeholder="123 Main St Apt 4">
+  <div class="row">
+    <div>
+      <label for="f-found-city">City</label>
+      <input id="f-found-city" autocomplete="off" placeholder="Asbury Park" list="cityList">
+      <datalist id="cityList">
+        <option value="Asbury Park"></option>
+        <option value="Ocean"></option>
+        <option value="Interlaken"></option>
+        <option value="Tinton Falls"></option>
+        <option value="Neptune"></option>
+        <option value="Oakhurst"></option>
+      </datalist>
+    </div>
+    <div style="flex:0 0 96px">
+      <label for="f-found-zip">ZIP</label>
+      <input id="f-found-zip" autocomplete="off" inputmode="numeric" placeholder="07712" maxlength="10" value="07712">
+    </div>
+  </div>
+  <button class="go" id="copyBtn">Copy Complete Address</button>
+  <div id="copyStatus" style="font-size:14px; margin-top:8px; color:#33415c"></div>
+</div>
+
+<div class="card">
+  <h2>3. No luck in OPRS? Search the web</h2>
+  <p class="note" style="margin:0 0 4px">People-search sites cover renters and recent movers that the tax records miss. The miner reads Bing and DuckDuckGo snippets and suggests an address — it never fills anything in on its own.</p>
+  <button class="big" id="mineBtn">🤖 Suggest the address for me</button>
+  <div id="mineStatus" class="note" style="margin-top:8px"></div>
+  <div id="mineProg"><div id="mineProgFill"></div></div>
+  <div id="mineResult"></div>
+  <div id="searches">
+    <p class="note" style="margin-top:12px">Once a name is typed above, manual search buttons appear here, already filled in.</p>
+  </div>
+  <p class="note" style="margin-top:12px">Broker info can be months out of date, so sanity-check an address before you use it. A wrong delivery is worse than no delivery. Buttons dim once tapped, so you can keep your place working down the list.</p>
+</div>
+
+<p class="note">Privacy: a photo is read right here on your phone. Nothing is uploaded or stored. The searches open on the sites themselves, same as typing them in by hand.</p>
+<p class="ver">NA Finder v1</p>
+
+<script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+<script>
+var $ = function(id){ return document.getElementById(id); };
+
+var STATE_NAMES = {NJ:"New Jersey"};
+
+function smartCase(s){
+  s = String(s).trim().replace(/\s+/g," ");
+  var letters = s.replace(/[^A-Za-z]/g,"");
+  if(!letters) return s;
+  var upper = letters.replace(/[^A-Z]/g,"").length;
+  if(upper / letters.length > 0.7 || upper === 0){
+    return s.toLowerCase().replace(/\b([a-z])/g, function(m,c){ return c.toUpperCase(); });
+  }
+  return s;
+}
+function slugHyphen(s){ return s.trim().toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/^-+|-+$/g,""); }
+function slugCap(s){ return smartCase(s).replace(/[^A-Za-z0-9]+/g,"-").replace(/^-+|-+$/g,""); }
+function escReM(x){ return String(x).replace(/[.*+?^${}()|[\]\\]/g, "\\$&"); }
+
+function fullName(){
+  var f = $("f-first").value.trim(), l = $("f-last").value.trim();
+  return (smartCase(f) + " " + smartCase(l)).trim();
+}
+function searchName(name){
+  var toks = String(name).trim().split(/\s+/).filter(Boolean);
+  if(toks.length < 3) return toks.join(" ");
+  return toks.filter(function(t, i){
+    if(i === 0 || i === toks.length - 1) return true;
+    return !/^[A-Za-z]\.?$/.test(t);
+  }).join(" ");
+}
+function oprsFormat(){
+  var f = $("f-first").value.trim(), l = $("f-last").value.trim();
+  if(!l) return "";
+  var first = f.replace(/\s+/g," ").toUpperCase();
+  var mi = first.match(/\b([A-Z])\b/);
+  var firstPart = first ? (mi && first.split(" ").length > 1 ? first.split(" ")[0] + " " + mi[1] + "." : first) : "";
+  return l.replace(/\s+/g," ").toUpperCase() + (firstPart ? ", " + firstPart : "");
+}
+
+// ---------- Districts for the 07712 delivery zone ----------
+var DISTRICTS = [
+  { code: "1337", name: "Ocean Township", note: "Wanamassa, Wayside and Oakhurst. The biggest chunk of 07712 — start here." },
+  { code: "1304", name: "Asbury Park", note: "All of Asbury Park is 07712. Lots of renters though, so OPRS misses more here." },
+  { code: "1349", name: "Tinton Falls", note: "The 07712 part of Tinton Falls is delivered in your zone — very relevant, do not skip it." },
+  { code: "1322", name: "Interlaken", note: "Tiny borough, almost all 07712. A name check takes seconds." },
+  { code: "1335", name: "Neptune Township", note: "Never officially 07712, but people misaddress Neptune pieces as 07712 — worth a look before you give up." }
+];
+function buildDistricts(){
+  var box = $("districts");
+  box.innerHTML = "";
+  DISTRICTS.forEach(function(d){
+    var b = document.createElement("button");
+    b.className = "district";
+    var boxEl = document.createElement("span"); boxEl.className = "box"; boxEl.textContent = "";
+    var mid = document.createElement("span");
+    mid.appendChild(document.createTextNode(d.name));
+    var small = document.createElement("small"); small.textContent = d.note; mid.appendChild(small);
+    var code = document.createElement("span"); code.className = "code"; code.textContent = "District " + d.code;
+    b.appendChild(boxEl); b.appendChild(mid); b.appendChild(code);
+    b.addEventListener("click", function(){
+      b.classList.toggle("done");
+      boxEl.textContent = b.classList.contains("done") ? "✓" : "";
+    });
+    box.appendChild(b);
+  });
+}
+buildDistricts();
+
+// ---------- OPRS helpers ----------
+function refreshOprs(){
+  var t = oprsFormat();
+  $("oprsName").textContent = t ? t : "— type a name above —";
+}
+function copyText(text, doneEl, doneMsg){
+  function done(){ doneEl.textContent = doneMsg; }
+  if(navigator.clipboard && navigator.clipboard.writeText){
+    navigator.clipboard.writeText(text).then(done, function(){ fallback(); });
+  } else { fallback(); }
+  function fallback(){
+    var ta = document.createElement("textarea");
+    ta.value = text; ta.style.position = "fixed"; ta.style.opacity = "0";
+    document.body.appendChild(ta); ta.select();
+    try { document.execCommand("copy"); done(); } catch(e){ doneEl.textContent = text; }
+    document.body.removeChild(ta);
+  }
+}
+$("copyOprsBtn").addEventListener("click", function(){
+  var t = oprsFormat();
+  if(!t){ $("copyOprsStatus").textContent = "Type a name in step 1 first."; return; }
+  copyText(t, $("copyOprsStatus"), "Copied: " + t + " — now open OPRS, pick the District first, then paste it as Owner Name.");
+});
+$("openOprsBtn").addEventListener("click", function(){
+  window.location.href = "https://oprs.co.monmouth.nj.us/oprs/External.aspx?iId=12";
+});
+
+// ---------- Manual web searches ----------
+function goSearch(url){ window.location.href = url; }
+function buildSearches(){
+  var name = fullName();
+  var box = $("searches");
+  if(!name || !$("f-last").value.trim()){
+    box.innerHTML = '<p class="note" style="margin-top:12px">Once a name is typed above, manual search buttons appear here, already filled in.</p>';
+    return;
+  }
+  var loose = searchName(name);
+  var q = function(s){ return encodeURIComponent(s); };
+  var searches = [
+    { label: "Web search (start here)", hint: "Google results through Startpage, so it stays in Safari", url: "https://www.startpage.com/sp/search?query=" + q('"' + loose + '" 07712') },
+    { label: "Web search: name + 07712", hint: "DuckDuckGo, exact name and ZIP", url: "https://duckduckgo.com/?q=" + q('"' + loose + '" 07712') },
+    { label: "Web search (Bing)", hint: "Same search on a second index", url: "https://www.bing.com/search?q=" + q('"' + loose + '" 07712 NJ') },
+    { label: "FastPeopleSearch", hint: "Free, often shows the current address right in the result", url: "https://www.fastpeoplesearch.com/name/" + slugHyphen(loose) + "_asbury-park-nj" },
+    { label: "TruePeopleSearch", hint: "Free, lists current address when it has one", url: "https://www.truepeoplesearch.com/results?name=" + q(loose) + "&citystatezip=" + q("Asbury Park, NJ") },
+    { label: "Whitepages", hint: "Name + town lookup", url: "https://www.whitepages.com/name/" + slugCap(loose) + "/Asbury-Park-NJ" },
+    { label: "Spokeo", hint: "Name + town lookup", url: "https://www.spokeo.com/" + slugCap(loose) + "/New-Jersey/Asbury-Park" }
+  ];
+  box.innerHTML = "";
+  searches.forEach(function(s, idx){
+    var b = document.createElement("button");
+    b.className = "search-btn" + (idx === 0 ? " primary" : "");
+    b.appendChild(document.createTextNode("🔍 " + s.label));
+    var small = document.createElement("small");
+    small.textContent = s.hint;
+    b.appendChild(small);
+    b.addEventListener("click", function(){ b.classList.add("done"); goSearch(s.url); });
+    box.appendChild(b);
+  });
+}
+function onNameInput(){ refreshOprs(); buildSearches(); }
+["f-first","f-last"].forEach(function(id){ $(id).addEventListener("input", onNameInput); });
+$("f-wrong").addEventListener("input", function(){});
+
+// ---------- Sample + clear ----------
+$("sampleBtn").addEventListener("click", function(){
+  $("f-first").value = "Jordana";
+  $("f-last").value = "Laskin";
+  $("f-wrong").value = "";
+  onNameInput();
+  $("status").textContent = "Sample filled in. Copy the OPRS name, or run the miner in step 3 to see how it behaves.";
+});
+$("clearBtn").addEventListener("click", function(){
+  ["f-first","f-last","f-wrong","f-found-street","f-found-city"].forEach(function(id){ $(id).value = ""; });
+  $("f-found-zip").value = "07712";
+  $("copyStatus").textContent = ""; $("copyOprsStatus").textContent = "";
+  $("mineResult").innerHTML = ""; $("mineStatus").textContent = "";
+  buildDistricts();
+  onNameInput();
+  $("status").textContent = "Cleared. Type the next name.";
+  window.scrollTo({ top: 0, behavior: "smooth" });
+});
+
+// ---------- Copy complete address ----------
+$("copyBtn").addEventListener("click", function(){
+  var name = fullName();
+  var street = $("f-found-street").value.trim();
+  var city = smartCase($("f-found-city").value.trim()), zip = $("f-found-zip").value.trim() || "07712";
+  if(!name || !street){ $("copyStatus").textContent = "Need the name (step 1) and the street found (step 2 or 3) first."; return; }
+  var full = name + "\n" + street + "\n" + city + ", NJ " + zip;
+  copyText(full, $("copyStatus"), "Copied:\n" + full);
+});
+</script>
+<script>
+// ---------- Optional camera scan: fills the name, and the printed address as the wrong address ----------
+// The camera NEVER opens on its own here. Typing is the main path; this is a helper.
+var STREET_SUFFIX = /\b(St|Street|Ave|Avenue|Rd|Road|Ct|Court|Dr|Drive|Ln|Lane|Blvd|Boulevard|Way|Pl|Place|Cir|Circle|Ter|Terrace|Hwy|Highway|Pkwy|Parkway|Trail|Trl|Sq|Square|Loop|Run|Row|Cove|Point|Pt)\b\.?/i;
+function cleanName(l){
+  var out = l.replace(/[^A-Za-z .'-]/g," ").replace(/\s+/g," ").trim();
+  out = out.replace(/^\s*(Mr|Mrs|Ms|Miss|Dr)\.?\s+/i,"");
+  out = out.replace(/^(The|Apts?|Occupant|Resident)\s+/i,"");
+  out = out.replace(/\s+(Household|Family|Residence|Residents|Occupant)$/i,"");
+  return smartCase(out.trim());
+}
+function plausibleName(l){
+  var t = l.replace(/[^A-Za-z .'-]/g," ").replace(/\s+/g," ").trim();
+  if(!t) return false;
+  var words = t.split(" ").filter(Boolean);
+  if(words.length < 1 || words.length > 5) return false;
+  var single = 0;
+  for(var i=0;i<words.length;i++){
+    if(!/^[A-Za-z][A-Za-z.'-]*$/.test(words[i])) return false;
+    if(words[i].replace(/[.']/g,"").length === 1) single++;
+  }
+  return single < 2;
+}
+function parseLetter(text){
+  var out = { name:"", street:"" };
+  var junk = /(first[\s-]*class|us postage|postage|pitney|indicia|presort|bulk rate|permit|return service|electronic service|current resident|www\.|http|\.com|united states|postal service)/i;
+  var lines = text.split(/\r?\n/).map(function(l){ return l.trim(); }).filter(function(l){ return l.length > 1 && !junk.test(l); });
+  var cityIdx = -1, streetIdx = -1;
+  for(var i=0;i<lines.length;i++){
+    if(/^([A-Za-z][A-Za-z .]*?),?\s+([A-Za-z]{2})\s+(\d{5})(?:-\d{4})?\s*$/.test(lines[i])) cityIdx = i;
+  }
+  if(cityIdx > 0){
+    for(var a=cityIdx-1; a>=Math.max(0,cityIdx-3); a--){
+      if(/^\d{1,6}\s+\S+/.test(lines[a])){ streetIdx = a; break; }
+    }
+  }
+  if(streetIdx < 0){
+    for(var j=0;j<lines.length;j++){
+      if(j !== cityIdx && /^\d{1,6}\s+[A-Za-z]/.test(lines[j]) && STREET_SUFFIX.test(lines[j])){ streetIdx = j; break; }
+    }
+  }
+  if(streetIdx >= 0) out.street = smartCase(lines[streetIdx].replace(/\s+/g," "));
+  var anchor = (streetIdx >= 0 ? streetIdx : cityIdx);
+  if(anchor > 0){
+    for(var n=anchor-1; n>=Math.max(0,anchor-3); n--){
+      if(plausibleName(lines[n])){ out.name = cleanName(lines[n]); break; }
+    }
+  } else {
+    for(var k=0;k<lines.length;k++){ if(plausibleName(lines[k])){ out.name = cleanName(lines[k]); break; } }
+  }
+  return out;
+}
+function scoreLetter(p){ var s = 0; if(p.name) s += 4; if(p.name && p.name.split(" ").length >= 2) s += 3; if(p.street) s += 3; return s; }
+
+function loadImg(file){
+  return new Promise(function(res, rej){
+    var img = new Image();
+    img.onload = function(){ res(img); };
+    img.onerror = rej;
+    img.src = URL.createObjectURL(file);
+  });
+}
+function makeCanvas(source, sw, sh, y0, y1, mode){
+  var sy = Math.floor(sh * y0), hh = Math.floor(sh * (y1 - y0));
+  var scale = 1;
+  if(sw > 1900) scale = 1900 / sw;
+  else if(sw < 1200) scale = Math.min(2.2, 1400 / sw);
+  var c = document.createElement("canvas");
+  c.width = Math.floor(sw * scale); c.height = Math.floor(hh * scale);
+  var ctx = c.getContext("2d");
+  ctx.drawImage(source, 0, sy, sw, hh, 0, 0, c.width, c.height);
+  try {
+    var im = ctx.getImageData(0, 0, c.width, c.height), d = im.data;
+    var n = c.width * c.height, gray = new Uint8Array(n), min = 255, max = 0, i, g;
+    for(i = 0; i < n; i++){ g = (d[i*4]*299 + d[i*4+1]*587 + d[i*4+2]*114) / 1000; gray[i] = g; if(g < min) min = g; if(g > max) max = g; }
+    var range = Math.max(1, max - min), v;
+    for(i = 0; i < n; i++){
+      v = (gray[i] - min) * 255 / range;
+      if(mode === "binary") v = v > 150 ? 255 : 0;
+      d[i*4] = v; d[i*4+1] = v; d[i*4+2] = v;
+    }
+    ctx.putImageData(im, 0, 0);
+  } catch(e){}
+  return c;
+}
+function fillLetter(best, bestScore){
+  if(!best || bestScore <= 0 || !best.name){
+    $("status").classList.remove("working");
+    $("status").textContent = "Could not read a name on that one. Retake it closer, with just the address block in the frame, or just type the name above — typing is the fast path anyway.";
+    return;
+  }
+  var toks = best.name.split(" ").filter(Boolean);
+  if(toks.length >= 2){
+    $("f-last").value = toks[toks.length - 1];
+    $("f-first").value = toks.slice(0, toks.length - 1).join(" ");
+  } else {
+    $("f-last").value = best.name;
+    $("f-first").value = "";
+  }
+  if(best.street) $("f-wrong").value = best.street;
+  onNameInput();
+  $("status").classList.remove("working");
+  $("status").textContent = "Read: " + best.name + (best.street ? ". The printed address went into the wrong-address field — fix it if the scan slipped." : ". No street was printed, which is the whole problem this app solves.") + " Check the name, then head to step 2.";
+}
+async function ocrSource(source, sw, sh, tight){
+  $("status").classList.add("working"); $("status").textContent = "Reading…";
+  var worker = null;
+  try {
+    worker = await Tesseract.createWorker("eng");
+    try { await worker.setParameters({ tessedit_pageseg_mode: "6" }); } catch(e){}
+  } catch(e){ worker = null; }
+  var passes = tight ? [[0, 1, "stretch"], [0, 1, "binary"]] : [[0, 1, "stretch"], [0, 0.55, "stretch"], [0, 1, "binary"]];
+  var best = null, bestScore = -1;
+  for(var k = 0; k < passes.length; k++){
+    $("status").classList.add("working"); $("status").textContent = "Reading… pass " + (k + 1) + " of " + passes.length;
+    try {
+      var canvas = makeCanvas(source, sw, sh, passes[k][0], passes[k][1], passes[k][2]);
+      var result = worker ? await worker.recognize(canvas) : await Tesseract.recognize(canvas, "eng");
+      var tp = parseLetter(result.data.text);
+      var sc = scoreLetter(tp);
+      if(sc > bestScore){ bestScore = sc; best = tp; }
+      if(bestScore >= 10) break;
+    } catch(e){}
+  }
+  if(worker){ try { await worker.terminate(); } catch(e){} }
+  fillLetter(best, bestScore);
+}
+
+$("scanToggleBtn").addEventListener("click", function(){
+  var a = $("scanArea");
+  var show = a.style.display === "none";
+  a.style.display = show ? "block" : "none";
+  $("scanToggleBtn").textContent = show ? "📷 Hide the camera" : "📷 Or scan the letter with the camera instead";
+});
+$("photoBtn").addEventListener("click", function(){ $("photo").click(); });
+$("photo").addEventListener("change", async function(){
+  var file = this.files && this.files[0];
+  this.value = "";
+  if(!file) return;
+  var prev = $("preview");
+  prev.src = URL.createObjectURL(file);
+  prev.style.display = "block";
+  if(typeof Tesseract === "undefined"){
+    $("status").textContent = "The reading library did not load (needs a connection the first time). Check signal and reload, or just type the name.";
+    return;
+  }
+  var img;
+  try { img = await loadImg(file); } catch(e){ $("status").textContent = "Could not open that photo. Try again, or type the name."; return; }
+  ocrSource(img, img.naturalWidth, img.naturalHeight, false);
+});
+
+var stream = null;
+var GUIDE = { x: 0.04, y: 0.09, w: 0.92, h: 0.52 };
+async function startCam(){
+  if(!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia){
+    $("status").textContent = "Live camera is not available here. Use a library photo instead, or type the name.";
+    return false;
+  }
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment", width: { ideal: 1920 } }, audio: false });
+    var v = $("cam");
+    v.srcObject = stream;
+    await v.play();
+    $("camWrap").style.display = "block";
+    $("liveBtn").style.display = "none";
+    return true;
+  } catch(e){
+    $("status").textContent = "Camera was blocked. Allow camera access for this site in Safari settings, use a library photo, or just type the name.";
+    return false;
+  }
+}
+function stopCam(){
+  if(stream){ stream.getTracks().forEach(function(t){ t.stop(); }); stream = null; }
+  $("camWrap").style.display = "none";
+  $("liveBtn").style.display = "block";
+}
+$("liveBtn").addEventListener("click", startCam);
+$("stopCamBtn").addEventListener("click", stopCam);
+$("captureBtn").addEventListener("click", async function(){
+  var v = $("cam");
+  if(!v.videoWidth) return;
+  var vw = v.videoWidth, vh = v.videoHeight;
+  var rect = v.getBoundingClientRect(), boxW = rect.width, boxH = rect.height;
+  var sf = Math.max(boxW / vw, boxH / vh);
+  var visW = boxW / sf, visH = boxH / sf;
+  var offX = (vw - visW) / 2, offY = (vh - visH) / 2;
+  var sx = offX + (GUIDE.x * boxW) / sf, sy = offY + (GUIDE.y * boxH) / sf;
+  var swd = (GUIDE.w * boxW) / sf, shd = (GUIDE.h * boxH) / sf;
+  var scale = Math.min(2, 1600 / swd); if(scale < 1) scale = 1;
+  var c = document.createElement("canvas");
+  c.width = Math.floor(swd * scale); c.height = Math.floor(shd * scale);
+  c.getContext("2d").drawImage(v, sx, sy, swd, shd, 0, 0, c.width, c.height);
+  var prev = $("preview");
+  try { prev.src = c.toDataURL("image/jpeg", 0.85); prev.style.display = "block"; } catch(e){}
+  stopCam();
+  if(typeof Tesseract === "undefined"){
+    $("status").textContent = "The reading library did not load (needs a connection the first time). Check signal and reload, or type the name.";
+    return;
+  }
+  ocrSource(c, c.width, c.height, true);
+});
+// NOTE: no auto-open on load in this app, on purpose. The camera is optional.
+</script>
+<script>
+// ---------- Snippet miner: suggests a full street address, never fills on its own ----------
+// Reads Bing + DuckDuckGo result pages through a reader relay and mines the
+// snippets for street addresses tied to the name. A candidate only counts
+// when the surname AND (07712 or a local town name) appear in the same
+// neighborhood of text, and it is never the wrong address printed on the letter.
+var PEOPLE_DOMAINS = ["fastpeoplesearch.com","truepeoplesearch.com","spokeo.com","whitepages.com","unmask.com","thatsthem.com","beenverified.com","peoplefinders.com","nuwber.com","familytreenow.com","mylife.com","veripages.com","nationalpublicdata.com","usphonebook.com","searchpeoplefree.com","anywho.com","411.com","radaris.com","zabasearch.com","truthfinder.com","intelius.com","peoplelooker.com","instantcheckmate.com","socialcatfish.com","checkpeople.com","publicrecords.com","smartbackgroundchecks.com","freepeopledirectory.com"];
+var LOCAL_TOWNS = ["Asbury Park","Tinton Falls","Interlaken","Oakhurst","Wanamassa","Wayside","Ocean","Neptune"];
+function cleanRelayText(t){
+  return String(t)
+    .replace(/!\[[^\]]*\]\([^)]*\)/g, " ")
+    .replace(/\[([^\]]*)\]\((https?[^)]*)\)/g, function(_, txt, url){
+       var u = url, m = url.match(/[?&]uddg=([^&]+)/);
+       if(m){ try { u = decodeURIComponent(m[1]); } catch(e){} }
+       return " " + txt + " (" + u + ") ";
+    })
+    .replace(/\*\*/g, " ")
+    .replace(/#{1,6}\s+/g, " ")
+    .replace(/\s+/g, " ");
+}
+function streetCoreOf(street){
+  return String(street).replace(/^\s*\d+\s+/, "").replace(/\s+(St|Street|Ave|Avenue|Rd|Road|Ct|Court|Dr|Drive|Ln|Lane|Blvd|Boulevard|Way|Pl|Place|Cir|Circle|Ter|Terrace|Hwy|Highway|Pkwy|Parkway|Trail|Trl|Sq|Square|Loop|Run|Row|Cove|Point|Pt)\.?$/i, "").trim().toLowerCase();
+}
+function extractAddresses(rawText, ctx, engineLabel){
+  var body = String(rawText);
+  var mc = body.indexOf("Markdown Content:");
+  if(mc >= 0) body = body.slice(mc + "Markdown Content:".length);
+  var text = cleanRelayText(body);
+  var urlSpans = [], um, urlRe = /\(https?[^)]*\)/g;
+  while((um = urlRe.exec(text)) !== null){ urlSpans.push([um.index, um.index + um[0].length]); }
+  function inUrl(pos){ for(var i = 0; i < urlSpans.length; i++){ if(pos >= urlSpans[i][0] && pos <= urlSpans[i][1]) return true; } return false; }
+  var domMarks = [], dm, domRe = /(?:www\.)?([a-z0-9-]+\.(?:com|net|org|io|info|us|co))\b/gi;
+  while((dm = domRe.exec(text)) !== null){ domMarks.push({ pos: dm.index, domain: dm[1].toLowerCase() }); }
+  function domainNear(pos){
+    var lastAny = "", lastPeople = "";
+    for(var i = 0; i < domMarks.length; i++){
+      if(domMarks[i].pos > pos) break;
+      if(pos - domMarks[i].pos < 1500){
+        lastAny = domMarks[i].domain;
+        if(PEOPLE_DOMAINS.indexOf(domMarks[i].domain) >= 0) lastPeople = domMarks[i].domain;
+      }
+    }
+    return lastPeople || (lastAny && lastAny !== "duckduckgo.com" && lastAny !== "bing.com" ? lastAny : "") || "search results";
+  }
+  var byAddr = {};
+  var addrRe = /\b(\d{1,6})\s+([A-Za-z][A-Za-z.'-]+(?:\s+(?:[A-Za-z][A-Za-z.'-]+|N|S|E|W|North|South|East|West)){0,3}?)\s+(Street|St|Avenue|Ave|Road|Rd|Court|Ct|Drive|Dr|Lane|Ln|Boulevard|Blvd|Way|Place|Pl|Circle|Cir|Terrace|Ter|Highway|Hwy|Parkway|Pkwy|Trail|Trl|Square|Sq|Loop|Cove|Point|Pt)\b\.?(?:\s+(?:Unit|Apt|Apartment|Ste|Suite|#)\s*\.?\s*([A-Za-z0-9][A-Za-z0-9-]{0,4}))?/gi;
+  var m;
+  while((m = addrRe.exec(text)) !== null){
+    var num = m[1], streetName = m[2].trim(), suffix = m[3], unit = (m[4] || "").toUpperCase();
+    if(inUrl(m.index)) continue;
+    if(!/[A-Za-z]{2,}/.test(streetName)) continue;
+    if(/^\d+$/.test(streetName)) continue;
+    var streetFull = num + " " + smartCase(streetName) + " " + suffix.replace(/\.$/,"");
+    var core = streetName.toLowerCase();
+    // Never suggest the wrong address printed on the letter back to the user.
+    if(ctx.wrongNum && ctx.wrongCore && num === ctx.wrongNum && core === ctx.wrongCore) continue;
+    var win = text.slice(Math.max(0, m.index - 280), m.index + m[0].length + 120).replace(/\(https?[^)]*\)/g, " ").replace(/https?:\/\/\S+/g, " ");
+    if(!new RegExp("\\b" + escReM(ctx.surname) + "\\b", "i").test(win)) continue;
+    var hasZip = /\b07712\b/.test(win);
+    // Town: prefer the town named right AFTER the address (that is how listings
+    // are written), then the closest one just before it. Never a town that
+    // merely appears somewhere else in the page.
+    var townFound = "";
+    var afterWin = text.slice(m.index, m.index + m[0].length + 160);
+    var bestAfter = Infinity;
+    for(var ti = 0; ti < LOCAL_TOWNS.length; ti++){
+      var ai = afterWin.search(new RegExp("\\b" + escReM(LOCAL_TOWNS[ti]) + "\\b", "i"));
+      if(ai >= 0 && ai < bestAfter){ bestAfter = ai; townFound = LOCAL_TOWNS[ti]; }
+    }
+    if(!townFound){
+      var beforeWin = text.slice(Math.max(0, m.index - 160), m.index);
+      var bestBefore = -1;
+      for(var tj = 0; tj < LOCAL_TOWNS.length; tj++){
+        var bi = beforeWin.toLowerCase().lastIndexOf(LOCAL_TOWNS[tj].toLowerCase());
+        if(bi > bestBefore){ bestBefore = bi; townFound = LOCAL_TOWNS[tj]; }
+      }
+    }
+    if(!hasZip && !townFound) continue;
+    var cityOut = townFound === "Ocean" ? "Ocean" : townFound;
+    var key = (num + "|" + core + "|" + suffix.toLowerCase().replace(/\.$/,"") + "|" + unit).toUpperCase();
+    var dom = domainNear(m.index);
+    if(!byAddr[key]) byAddr[key] = { street: streetFull + (unit ? " Unit " + unit : ""), rawStreet: streetFull, unit: unit, city: cityOut, zip: hasZip ? "07712" : "07712", score: 0, domains: {}, zipBonus: false, evidence: [] };
+    var entry = byAddr[key];
+    if(townFound && !entry.city) entry.city = cityOut;
+    if(!entry.domains[dom]){
+      entry.domains[dom] = true;
+      entry.score += PEOPLE_DOMAINS.indexOf(dom) >= 0 ? 2 : 1;
+    }
+    if(hasZip && !entry.zipBonus){ entry.zipBonus = true; entry.score += 1; }
+    if(entry.evidence.length < 3){
+      var ss = text.lastIndexOf(". ", Math.max(0, m.index - 220));
+      var se = text.indexOf(". ", m.index + m[0].length);
+      var snippet = text.slice(Math.max(ss >= 0 ? ss + 2 : 0, m.index - 110), se >= 0 ? se + 1 : m.index + 170)
+        .replace(/\(https?[^)]*\)/g, "").replace(/\S{40,}/g, "").replace(/\s+/g, " ").trim();
+      var cutJ = snippet.lastIndexOf('") ');
+      if(cutJ >= 0 && cutJ <= 70) snippet = snippet.slice(cutJ + 3);
+      snippet = snippet.replace(/^["\u201C\u201D\s]+/, "");
+      entry.evidence.push({ domain: dom, engine: engineLabel, text: snippet.slice(0, 190) });
+    }
+  }
+  return byAddr;
+}
+function mergeAddr(into, from){
+  Object.keys(from).forEach(function(k){
+    if(!into[k]){ into[k] = from[k]; return; }
+    var a = into[k], b = from[k];
+    Object.keys(b.domains).forEach(function(d){
+      if(!a.domains[d]){ a.domains[d] = true; a.score += PEOPLE_DOMAINS.indexOf(d) >= 0 ? 2 : 1; }
+    });
+    if(b.zipBonus && !a.zipBonus){ a.zipBonus = true; a.score += 1; }
+    if(!a.city && b.city) a.city = b.city;
+    b.evidence.forEach(function(ev){ if(a.evidence.length < 3) a.evidence.push(ev); });
+  });
+  return into;
+}
+function fetchTextM(url, ms){
+  return new Promise(function(resolve){
+    var ctl = ("AbortController" in window) ? new AbortController() : null;
+    var t = setTimeout(function(){ if(ctl) ctl.abort(); }, ms || 20000);
+    fetch(url, ctl ? { signal: ctl.signal } : {}).then(function(r){ return r.text(); }).then(function(txt){
+      clearTimeout(t); resolve(txt || "");
+    }).catch(function(){ clearTimeout(t); resolve(""); });
+  });
+}
+async function runMiner(){
+  var name = fullName();
+  var btn = $("mineBtn"), st = $("mineStatus"), out = $("mineResult");
+  out.innerHTML = "";
+  if(!name || !$("f-last").value.trim()){
+    st.textContent = "Type the name in step 1 first, then I can go looking.";
+    return;
+  }
+  var loose = searchName(name);
+  var surname = loose.split(" ").slice(-1)[0];
+  var wrong = $("f-wrong").value.trim();
+  var wrongNum = (wrong.match(/^\s*(\d+)/) || [])[1] || "";
+  var wrongCore = wrong ? streetCoreOf(wrong) : "";
+  var ctx = { surname: surname, wrongNum: wrongNum, wrongCore: wrongCore };
+  var queries = [
+    '"' + loose + '" 07712',
+    loose + " Asbury Park NJ",
+    loose + " Ocean NJ 07712",
+    loose + " Tinton Falls NJ",
+    surname + " 07712 address"
+  ];
+  var ddgLite = false;
+  var engines = [
+    { label: "DuckDuckGo", url: function(q){ return (ddgLite ? "https://lite.duckduckgo.com/lite/?q=" : "https://duckduckgo.com/?q=") + encodeURIComponent(q); } },
+    { label: "Bing", url: function(q){ return "https://www.bing.com/search?q=" + encodeURIComponent(q); } }
+  ];
+  function relayOk(txt){
+    return !!(txt && txt.length > 200 && !/"code":\s*(403|429)/.test(txt) && txt.indexOf("AbuseAlleviationError") < 0 && txt.indexOf("Rate limit") < 0);
+  }
+  var merged = {}, answered = {};
+  function bestScoreNow(){
+    var bs = 0;
+    Object.keys(merged).forEach(function(k){ if(merged[k].score > bs) bs = merged[k].score; });
+    return bs;
+  }
+  btn.disabled = true;
+  st.classList.add("working");
+  var prog = $("mineProg"), progFill = $("mineProgFill");
+  if(prog) prog.style.display = "block";
+  if(progFill) progFill.style.width = "0%";
+  var passes = [];
+  queries.forEach(function(q){ engines.forEach(function(e){ passes.push({ q: q, e: e }); }); });
+  var totalPlanned = passes.length, settled = 0;
+  async function runPass(p){
+    var txt = await fetchTextM("https://r.jina.ai/" + p.e.url(p.q), 12000);
+    settled++;
+    if(progFill) progFill.style.width = Math.min(96, Math.round(settled / totalPlanned * 100)) + "%";
+    if(relayOk(txt)){
+      answered[p.e.label] = true;
+      mergeAddr(merged, extractAddresses(txt, ctx, p.e.label));
+      return true;
+    }
+    return false;
+  }
+  st.textContent = "Reading snippets from DuckDuckGo and Bing at the same time…";
+  var wave1 = [passes[0], passes[1], passes[2], passes[3]];
+  var w1res = await Promise.all(wave1.map(runPass));
+  var ddgFailed = !w1res[0] && !w1res[2];
+  if(ddgFailed && !ddgLite) ddgLite = true;
+  if(bestScoreNow() < 4){
+    st.textContent = "First round done. Digging deeper with the town-by-town queries…";
+    var rest = passes.slice(4);
+    if(ddgFailed) rest.push(passes[0]);
+    await Promise.all(rest.map(runPass));
+  }
+  if(progFill) progFill.style.width = "100%";
+  btn.disabled = false;
+  st.classList.remove("working");
+  if(prog) prog.style.display = "none";
+  var answeredList = Object.keys(answered);
+  if(!answeredList.length){
+    st.textContent = "The snippet relay did not answer this time (it rate-limits when busy). Give it a minute, or work the buttons below.";
+    return;
+  }
+  var checkedNote = " Checked: " + answeredList.join(" and ") + ".";
+  var rawCands = Object.keys(merged).map(function(k){ return merged[k]; }).sort(function(a,b){ return b.score - a.score; });
+  var cands = rawCands.filter(function(c){ return c.score >= 2; });
+  if(!cands.length){
+    st.textContent = rawCands.length
+      ? "Only faint single mentions turned up for " + loose + " in the 07712 area, not enough to suggest in good faith. Work the buttons below, and do not forget OPRS in step 2." + checkedNote
+      : "No address turned up in the snippets for " + loose + " in the 07712 area. That happens, especially for renters with thin web footprints. Work the buttons below." + checkedNote;
+    return;
+  }
+  var top = cands[0];
+  var nSources = Object.keys(top.domains).length;
+  var tier = top.score >= 4 ? "Strong: " + nSources + " sources agree." :
+             "One solid source. Treat it as a lead and sanity-check it.";
+  st.textContent = "";
+  var card = document.createElement("div");
+  card.style.cssText = "border:1.5px solid #5eead4; border-left:6px solid #0d9488; border-radius:16px; padding:14px; margin-top:12px; background:linear-gradient(180deg,#f0fdfa,#ffffff); box-shadow:0 8px 18px rgba(13,148,136,.13)";
+  var head = document.createElement("div");
+  head.style.cssText = "font-size:18px; font-weight:700";
+  head.textContent = "Suggested address: " + top.street + (top.city ? ", " + top.city : "") + ", NJ 07712";
+  card.appendChild(head);
+  var tierEl = document.createElement("div");
+  tierEl.style.cssText = "font-size:14px; margin:4px 0 8px";
+  tierEl.textContent = tier;
+  card.appendChild(tierEl);
+  top.evidence.forEach(function(ev){
+    var e = document.createElement("div");
+    e.style.cssText = "font-size:13px; color:#33415c; margin:4px 0";
+    e.textContent = ev.domain + " (via " + ev.engine + "): \u201C" + ev.text + "\u201D";
+    card.appendChild(e);
+  });
+  if(cands[1]){
+    var alt = document.createElement("div");
+    alt.style.cssText = "font-size:13px; color:#7a4d00; margin-top:6px";
+    alt.textContent = "Another candidate showed up: " + cands[1].street + (cands[1].city ? ", " + cands[1].city : "") + " (" + Object.keys(cands[1].domains).length + " source). Mixed signals, extra reason to check — could be an old address.";
+    card.appendChild(alt);
+  }
+  if(wrong){
+    var wnote = document.createElement("div");
+    wnote.style.cssText = "font-size:13px; color:#33415c; margin-top:6px";
+    wnote.textContent = "The printed wrong address (" + wrong + ") was excluded, so this is a different address.";
+    card.appendChild(wnote);
+  }
+  var row = document.createElement("div");
+  row.style.cssText = "display:flex; gap:8px; margin-top:10px";
+  var acc = document.createElement("button");
+  acc.className = "go"; acc.style.flex = "1"; acc.textContent = "Use this address";
+  acc.addEventListener("click", function(){
+    $("f-found-street").value = top.street;
+    if(top.city) $("f-found-city").value = top.city;
+    $("f-found-zip").value = "07712";
+    out.innerHTML = "";
+    st.textContent = "Filled in at the bottom of step 2. Hit Copy Complete Address when ready.";
+    $("copyBtn").scrollIntoView({ behavior: "smooth", block: "center" });
+  });
+  var dis = document.createElement("button");
+  dis.className = "ghost"; dis.style.flex = "1"; dis.textContent = "Dismiss";
+  dis.addEventListener("click", function(){ out.innerHTML = ""; st.textContent = "Suggestion dismissed."; });
+  row.appendChild(acc); row.appendChild(dis);
+  card.appendChild(row);
+  out.appendChild(card);
+}
+$("mineBtn").addEventListener("click", runMiner);
+refreshOprs();
+buildSearches();
+</script>
+</body>
+</html>
