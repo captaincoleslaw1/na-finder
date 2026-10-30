@@ -63,7 +63,7 @@
 </head>
 <body>
 
-<div class="hero"><h1>🏠 NA Finder</h1><p class="sub">NA: No Address. Letter has a name but no address, or the wrong one? Type the name, check the county owner records, then let the web miner try.</p></div>
+<div class="hero"><h1>🏠 NA Finder</h1><p class="sub">NA: No Address. Letter has a name but no address, or the wrong one? Type the name, check the county owner records, then let the web miner try. Covers your whole delivery area: 07712, Allenhurst (07711) and Deal (07723).</p></div>
 
 <div class="card">
   <h2>1. Who is the letter for?</h2>
@@ -103,8 +103,8 @@
 </div>
 
 <div class="card">
-  <h2>2. County owner records (OPRS) — homeowners, 07712 area</h2>
-  <p class="note" style="margin:0">Monmouth County's tax records list every property owner by town. Owners only, so renters will not show up here — that is what step 3 is for. There is no ZIP search, so you check town by town and keep only the 07712 results (same town can have other ZIPs too).</p>
+  <h2>2. County owner records (OPRS) — homeowners, your delivery area</h2>
+  <p class="note" style="margin:0">Monmouth County's tax records list every property owner by town. Owners only, so renters will not show up here — that is what step 3 is for. There is no ZIP search, so you check town by town and keep only results in your ZIPs: 07712, 07711 and 07723 (the same town can have other ZIPs too).</p>
   <div class="oprsbox">
     <p class="note" style="margin:0 0 6px">Owner Name to type into OPRS (their format is LAST, FIRST):</p>
     <div class="oprsname" id="oprsName">— type a name above —</div>
@@ -114,7 +114,7 @@
     <ol class="steps">
       <li>In OPRS: Database = <b>Current Owners</b>, County = <b>Monmouth</b></li>
       <li><b>Pick the District FIRST</b>, then paste the Owner Name, then Submit. Changing the town can wipe the name and dump the whole town on you.</li>
-      <li>Read the <b>Location</b> column. Tap <b>More Info</b> to confirm the ZIP is 07712.</li>
+      <li>Read the <b>Location</b> column. Tap <b>More Info</b> to confirm the ZIP is one of yours: 07712, 07711 or 07723.</li>
       <li>Check each town off below as you finish it.</li>
     </ol>
   </div>
@@ -133,6 +133,8 @@
         <option value="Tinton Falls"></option>
         <option value="Neptune"></option>
         <option value="Oakhurst"></option>
+        <option value="Allenhurst"></option>
+        <option value="Deal"></option>
       </datalist>
     </div>
     <div style="flex:0 0 96px">
@@ -158,7 +160,7 @@
 </div>
 
 <p class="note">Privacy: a photo is read right here on your phone. Nothing is uploaded or stored. The searches open on the sites themselves, same as typing them in by hand.</p>
-<p class="ver">NA Finder v1</p>
+<p class="ver">NA Finder v2</p>
 
 <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
 <script>
@@ -207,6 +209,8 @@ var DISTRICTS = [
   { code: "1304", name: "Asbury Park", note: "All of Asbury Park is 07712. Lots of renters though, so OPRS misses more here." },
   { code: "1349", name: "Tinton Falls", note: "The 07712 part of Tinton Falls is delivered in your zone — very relevant, do not skip it." },
   { code: "1322", name: "Interlaken", note: "Tiny borough, almost all 07712. A name check takes seconds." },
+  { code: "1302", name: "Allenhurst", note: "All of Allenhurst is 07711, and you deliver it. Small borough, quick check." },
+  { code: "1311", name: "Deal", note: "All of Deal is 07723, and you deliver it." },
   { code: "1335", name: "Neptune Township", note: "Never officially 07712, but people misaddress Neptune pieces as 07712 — worth a look before you give up." }
 ];
 function buildDistricts(){
@@ -272,6 +276,7 @@ function buildSearches(){
     { label: "Web search (start here)", hint: "Google results through Startpage, so it stays in Safari", url: "https://www.startpage.com/sp/search?query=" + q('"' + loose + '" 07712') },
     { label: "Web search: name + 07712", hint: "DuckDuckGo, exact name and ZIP", url: "https://duckduckgo.com/?q=" + q('"' + loose + '" 07712') },
     { label: "Web search (Bing)", hint: "Same search on a second index", url: "https://www.bing.com/search?q=" + q('"' + loose + '" 07712 NJ') },
+    { label: "Web search: Allenhurst + Deal", hint: "DuckDuckGo, for the 07711 and 07723 parts of your area", url: "https://duckduckgo.com/?q=" + q('"' + loose + '" (Allenhurst OR Deal) NJ') },
     { label: "FastPeopleSearch", hint: "Free, often shows the current address right in the result", url: "https://www.fastpeoplesearch.com/name/" + slugHyphen(loose) + "_asbury-park-nj" },
     { label: "TruePeopleSearch", hint: "Free, lists current address when it has one", url: "https://www.truepeoplesearch.com/results?name=" + q(loose) + "&citystatezip=" + q("Asbury Park, NJ") },
     { label: "Whitepages", hint: "Name + town lookup", url: "https://www.whitepages.com/name/" + slugCap(loose) + "/Asbury-Park-NJ" },
@@ -532,7 +537,9 @@ $("captureBtn").addEventListener("click", async function(){
 // when the surname AND (07712 or a local town name) appear in the same
 // neighborhood of text, and it is never the wrong address printed on the letter.
 var PEOPLE_DOMAINS = ["fastpeoplesearch.com","truepeoplesearch.com","spokeo.com","whitepages.com","unmask.com","thatsthem.com","beenverified.com","peoplefinders.com","nuwber.com","familytreenow.com","mylife.com","veripages.com","nationalpublicdata.com","usphonebook.com","searchpeoplefree.com","anywho.com","411.com","radaris.com","zabasearch.com","truthfinder.com","intelius.com","peoplelooker.com","instantcheckmate.com","socialcatfish.com","checkpeople.com","publicrecords.com","smartbackgroundchecks.com","freepeopledirectory.com"];
-var LOCAL_TOWNS = ["Asbury Park","Tinton Falls","Interlaken","Oakhurst","Wanamassa","Wayside","Ocean","Neptune"];
+var LOCAL_TOWNS = ["Asbury Park","Tinton Falls","Interlaken","Oakhurst","Wanamassa","Wayside","Allenhurst","Deal","Ocean","Neptune"];
+var TOWN_ZIP = { "Allenhurst": "07711", "Deal": "07723" };
+var LOCAL_ZIP_RE = /\b077(?:11|12|23)\b/;
 function cleanRelayText(t){
   return String(t)
     .replace(/!\[[^\]]*\]\([^)]*\)/g, " ")
@@ -583,7 +590,7 @@ function extractAddresses(rawText, ctx, engineLabel){
     if(ctx.wrongNum && ctx.wrongCore && num === ctx.wrongNum && core === ctx.wrongCore) continue;
     var win = text.slice(Math.max(0, m.index - 280), m.index + m[0].length + 120).replace(/\(https?[^)]*\)/g, " ").replace(/https?:\/\/\S+/g, " ");
     if(!new RegExp("\\b" + escReM(ctx.surname) + "\\b", "i").test(win)) continue;
-    var hasZip = /\b07712\b/.test(win);
+    var hasZip = LOCAL_ZIP_RE.test(win);
     // Town: prefer the town named right AFTER the address (that is how listings
     // are written), then the closest one just before it. Never a town that
     // merely appears somewhere else in the page.
@@ -604,9 +611,13 @@ function extractAddresses(rawText, ctx, engineLabel){
     }
     if(!hasZip && !townFound) continue;
     var cityOut = townFound === "Ocean" ? "Ocean" : townFound;
+    var zipFound = "";
+    var zm = (afterWin.match(LOCAL_ZIP_RE) || win.match(LOCAL_ZIP_RE) || [])[0];
+    if(zm) zipFound = zm;
+    if(!zipFound && townFound && TOWN_ZIP[townFound]) zipFound = TOWN_ZIP[townFound];
     var key = (num + "|" + core + "|" + suffix.toLowerCase().replace(/\.$/,"") + "|" + unit).toUpperCase();
     var dom = domainNear(m.index);
-    if(!byAddr[key]) byAddr[key] = { street: streetFull + (unit ? " Unit " + unit : ""), rawStreet: streetFull, unit: unit, city: cityOut, zip: hasZip ? "07712" : "07712", score: 0, domains: {}, zipBonus: false, evidence: [] };
+    if(!byAddr[key]) byAddr[key] = { street: streetFull + (unit ? " Unit " + unit : ""), rawStreet: streetFull, unit: unit, city: cityOut, zip: zipFound || "07712", score: 0, domains: {}, zipBonus: false, evidence: [] };
     var entry = byAddr[key];
     if(townFound && !entry.city) entry.city = cityOut;
     if(!entry.domains[dom]){
@@ -668,6 +679,8 @@ async function runMiner(){
     loose + " Asbury Park NJ",
     loose + " Ocean NJ 07712",
     loose + " Tinton Falls NJ",
+    loose + " Allenhurst NJ 07711",
+    loose + " Deal NJ 07723",
     surname + " 07712 address"
   ];
   var ddgLite = false;
@@ -728,8 +741,8 @@ async function runMiner(){
   var cands = rawCands.filter(function(c){ return c.score >= 2; });
   if(!cands.length){
     st.textContent = rawCands.length
-      ? "Only faint single mentions turned up for " + loose + " in the 07712 area, not enough to suggest in good faith. Work the buttons below, and do not forget OPRS in step 2." + checkedNote
-      : "No address turned up in the snippets for " + loose + " in the 07712 area. That happens, especially for renters with thin web footprints. Work the buttons below." + checkedNote;
+      ? "Only faint single mentions turned up for " + loose + " in your delivery area, not enough to suggest in good faith. Work the buttons below, and do not forget OPRS in step 2." + checkedNote
+      : "No address turned up in the snippets for " + loose + " in your delivery area (07712, 07711, 07723). That happens, especially for renters with thin web footprints. Work the buttons below." + checkedNote;
     return;
   }
   var top = cands[0];
@@ -741,7 +754,7 @@ async function runMiner(){
   card.style.cssText = "border:1.5px solid #5eead4; border-left:6px solid #0d9488; border-radius:16px; padding:14px; margin-top:12px; background:linear-gradient(180deg,#f0fdfa,#ffffff); box-shadow:0 8px 18px rgba(13,148,136,.13)";
   var head = document.createElement("div");
   head.style.cssText = "font-size:18px; font-weight:700";
-  head.textContent = "Suggested address: " + top.street + (top.city ? ", " + top.city : "") + ", NJ 07712";
+  head.textContent = "Suggested address: " + top.street + (top.city ? ", " + top.city : "") + ", NJ " + (top.zip || "07712");
   card.appendChild(head);
   var tierEl = document.createElement("div");
   tierEl.style.cssText = "font-size:14px; margin:4px 0 8px";
@@ -772,7 +785,7 @@ async function runMiner(){
   acc.addEventListener("click", function(){
     $("f-found-street").value = top.street;
     if(top.city) $("f-found-city").value = top.city;
-    $("f-found-zip").value = "07712";
+    $("f-found-zip").value = top.zip || "07712";
     out.innerHTML = "";
     st.textContent = "Filled in at the bottom of step 2. Hit Copy Complete Address when ready.";
     $("copyBtn").scrollIntoView({ behavior: "smooth", block: "center" });
