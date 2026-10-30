@@ -165,7 +165,7 @@
 </div>
 
 <p class="note">Privacy: a photo is read right here on your phone. Nothing is uploaded or stored. The searches open on the sites themselves, same as typing them in by hand.</p>
-<p class="ver">NA Finder v4</p>
+<p class="ver">NA Finder v5</p>
 
 <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
 <script>
@@ -741,9 +741,9 @@ function parseDetailZip(text){
   var body = String(text);
   var mc = body.indexOf("Markdown Content:");
   if(mc >= 0) body = body.slice(mc + "Markdown Content:".length);
-  var m = body.match(/City State:\s*([A-Za-z ]+?)\s+NJ\s+(\d{5})/);
+  var m = body.match(/City State:\s*([A-Za-z ,.'-]+?)\s+NJ\s+(\d{5})/);
   if(!m) return null;
-  return { city: smartCase(m[1].trim()), zip: m[2] };
+  return { city: smartCase(m[1].replace(/[,\s]+$/, "").trim()), zip: m[2] };
 }
 function streetKeyOf(s){
   var num = (String(s).match(/^\s*(\d+)/) || [])[1] || "";
