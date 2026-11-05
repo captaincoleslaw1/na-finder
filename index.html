@@ -48,6 +48,15 @@
   #mineStatus.working::before { content: ""; flex: 0 0 16px; width: 16px; height: 16px; border-radius: 50%; border: 3px solid #99f6e4; border-top-color: #0f766e; animation: spin .8s linear infinite; }
   #mineStatus.working::after { content: "\23F3"; margin-left: auto; font-size: 18px; animation: hgflip 1.6s ease-in-out infinite; }
   @keyframes hgflip { 0%, 55% { transform: rotate(0deg); } 75%, 100% { transform: rotate(180deg); } }
+  .modeRow { display: flex; gap: 8px; margin-bottom: 10px; }
+  .modeBtn { flex: 1; padding: 12px 6px; font-size: 15.5px; font-weight: 700; border-radius: 13px; border: 1.5px solid #d7e1ef; background: #fff; color: #33415c; }
+  .modeBtn.on { background: linear-gradient(180deg, #16407c, #0a1c33); color: #fff; border-color: #0a1c33; }
+  #revBtn { background: linear-gradient(180deg, #f59e0b, #d97706); box-shadow: 0 6px 14px rgba(217,119,6,.30); }
+  #revBtn:disabled { opacity: .9; animation: revpulse 1.15s ease-in-out infinite; }
+  @keyframes revpulse { 0%,100% { box-shadow: 0 6px 14px rgba(217,119,6,.30); } 50% { box-shadow: 0 6px 22px rgba(245,158,11,.65); } }
+  #revStatus.working { display: flex; align-items: center; gap: 9px; background: #fffbeb; border: 1px solid #fcd34d; color: #92400e; padding: 10px 12px; border-radius: 12px; font-weight: 600; font-size: 14px; }
+  #revProg { display: none; height: 6px; background: #fde9c8; border-radius: 99px; margin-top: 8px; overflow: hidden; }
+  #revProgFill { height: 100%; width: 0; background: linear-gradient(90deg, #f59e0b, #d97706); border-radius: 99px; transition: width .45s ease; }
   #mineProg { display: none; height: 6px; background: #dce6f2; border-radius: 99px; margin-top: 8px; overflow: hidden; }
   #mineProgFill { height: 100%; width: 0; background: linear-gradient(90deg, #2dd4bf, #0f766e); border-radius: 99px; transition: width .45s ease; }
   .oprsbox { background: #fff7ed; border: 1.5px solid #fed7aa; border-radius: 14px; padding: 12px; margin-top: 10px; }
@@ -63,9 +72,14 @@
 </head>
 <body>
 
-<div class="hero"><h1>🏠 NA Finder</h1><p class="sub">NA: No Address. Letter has a name but no address, or the wrong one? Type the name, check the county owner records, then let the web miner try. Covers your whole delivery area: 07712, Allenhurst (07711) and Deal (07723).</p></div>
+<div class="hero"><h1>🏠 NA Finder</h1><p class="sub">NA: No Address. Letter has a name but no address, or the wrong one? Type the name, check the county owner records, then let the web miner try. Covers your whole delivery area: 07712, Allenhurst (07711) and Deal (07723). It also runs backwards: type an address, get the owner on record.</p></div>
 
 <div class="card">
+  <div class="modeRow">
+    <button class="modeBtn on" id="modeNameBtn">👤 Name → address</button>
+    <button class="modeBtn" id="modeAddrBtn">🏠 Address → owner</button>
+  </div>
+  <div id="nameMode">
   <h2>1. Who is the letter for?</h2>
   <div class="row">
     <div>
@@ -87,6 +101,18 @@
   <div id="mineProg"><div id="mineProgFill"></div></div>
   <div id="ownersResult"></div>
   <div id="mineResult"></div>
+  </div>
+
+  <div id="addrMode" style="display:none">
+  <h2>1. What address do you need the owner for?</h2>
+  <label for="r-addr">Street address</label>
+  <input id="r-addr" autocomplete="off" placeholder="e.g. 2400 Shafto Rd">
+  <button class="big" id="revBtn" style="margin-top:12px">🤖 Find the owner for me</button>
+  <p class="note" style="margin-top:6px">One tap. It walks that street in the county tax records for all 7 of your towns and shows the <b>owner on record</b> for that exact address. Owners only — a renter will not show up here.</p>
+  <div id="revStatus" class="note" style="margin-top:8px"></div>
+  <div id="revProg"><div id="revProgFill"></div></div>
+  <div id="revResult"></div>
+  </div>
 
   <h2 style="margin-top:18px">Found it? It goes here</h2>
   <label for="f-found-street">Street address found</label>
@@ -151,6 +177,7 @@
       <li>Read the <b>Location</b> column. Tap <b>More Info</b> to confirm the ZIP is one of yours: 07712, 07711 or 07723.</li>
       <li>Check each town off below as you finish it.</li>
     </ol>
+    <p class="note" style="margin-top:10px">Working from an address instead of a name? Leave Owner Name blank and put just the street name — no house number, no Rd/St — in the <b>Location</b> field. The county answers a bare street name, then you find your number in the list.</p>
   </div>
   <div id="districts"></div>
   <p class="note" style="margin-top:10px">Found one? Scroll back up to step 1 and put it in the "Found it?" fields — or use Copy Complete Address up there once it is filled in.</p>
@@ -167,7 +194,7 @@
 </div>
 
 <p class="note">Privacy: a photo is read right here on your phone. Nothing is uploaded or stored. The searches open on the sites themselves, same as typing them in by hand.</p>
-<p class="ver">NA Finder v6</p>
+<p class="ver">NA Finder v7</p>
 
 <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
 <script>
@@ -696,7 +723,7 @@ function ownersSearchUrl(district, lastName){
   return "https://tax1.co.monmouth.nj.us/cgi-bin/inf.cgi?ms_user=monm&passwd=&srch_type=1&select_cc=1301&district=" + district +
     "&adv=2&out_type=2&ms_ln=100&p_loc=&owner=" + encodeURIComponent(String(lastName).toUpperCase()) + "&block=&lot=&qual=";
 }
-function parseOwners(text){
+function parseOwners(text, includeVacant){
   var out = [];
   var body = String(text);
   var mc = body.indexOf("Markdown Content:");
@@ -711,7 +738,7 @@ function parseOwners(text){
     if(!urlM || !classM) continue;
     var owner = classM[2].replace(/\s+/g, " ").trim();
     if(!owner) continue;
-    if(classM[1] === "1") continue; // Class 1 = vacant land, nobody to deliver to
+    if(classM[1] === "1" && !includeVacant) continue; // Class 1 = vacant land, nobody to deliver to
     var before = ch.slice(0, classM.index);
     // Location starts at the LAST bare house-number token before "Class:"
     // whose next token is a street-name word. Token scanning (not regex
@@ -1075,6 +1102,159 @@ async function runMiner(){
   card.appendChild(row);
   out.appendChild(card);
 }
+// ---------- Reverse mode: address in, owner on record out ----------
+// The county location search only answers a bare street name in p_loc:
+// "2400 SHAFTO" and "SHAFTO RD" return 0 records, "SHAFTO" returns the
+// street's parcels (100 per page, pageno for more). Verified Nov 5, 2026 on
+// SHAFTO in Tinton Falls and OLD ORCHARD in Ocean Township. So the app
+// fetches the street town by town and matches the house number right here.
+function locSearchUrl(district, streetName, page){
+  return "https://tax1.co.monmouth.nj.us/cgi-bin/inf.cgi?ms_user=monm&passwd=&srch_type=2&select_cc=1301&district=" + district +
+    "&adv=2&out_type=2&ms_ln=100&p_loc=" + encodeURIComponent(streetName) + "&owner=&block=&lot=&qual=" + (page > 1 ? "&pageno=" + page : "");
+}
+function parseAddrInput(raw){
+  var s = String(raw || "").trim().replace(/\s+/g, " ").replace(/,.*$/, "").trim();
+  var m = s.match(/^(\d{1,6})\s+(.+)$/);
+  if(!m) return null;
+  var street = m[2].replace(/\s+(Apt|Apartment|Unit|Ste|Suite|#)\s*\S+$/i, "").trim();
+  var nameOnly = street.replace(/\s+(St|Street|Ave|Avenue|Rd|Road|Ct|Court|Dr|Drive|Ln|Lane|Blvd|Boulevard|Way|Pl|Place|Cir|Circle|Ter|Terrace|Hwy|Highway|Pkwy|Parkway|Trail|Trl|Sq|Square|Loop|Run|Row|Cove|Point|Pt)\.?$/i, "").trim();
+  return { num: m[1], street: street, nameOnly: nameOnly || street, core: streetCoreOf(street) };
+}
+function revCopyButton(r){
+  var b = document.createElement("button");
+  b.className = "ghost"; b.style.marginTop = "6px"; b.textContent = "Copy owner name";
+  b.addEventListener("click", function(){ copyText(r.owner, $("revStatus"), "Copied: " + r.owner); });
+  return b;
+}
+function renderReverse(exact, near, info){
+  var box = $("revResult");
+  box.innerHTML = "";
+  var head = document.createElement("div");
+  head.style.cssText = "font-size:15.5px; font-weight:700; margin-top:14px; color:#92400e";
+  head.textContent = "🏠 County owner records" + (ownersDataAsOf ? " (county data as of " + ownersDataAsOf + ")" : "");
+  box.appendChild(head);
+  if(!info.answered){
+    var n0 = document.createElement("div");
+    n0.style.cssText = "font-size:13.5px; color:#33415c; margin-top:6px";
+    n0.textContent = "The county records did not answer this time (the relay rate-limits when busy). Give it a minute and try again — or use the manual route in step 2: leave Owner Name blank and put just the street name in the Location field.";
+    box.appendChild(n0);
+    return;
+  }
+  exact.forEach(function(r){
+    var city = r.detail ? r.detail.city : (r.mailCity || r.district.city);
+    var zip = r.detail ? r.detail.zip : "";
+    var card = document.createElement("div");
+    card.style.cssText = "border:1.5px solid #fcd34d; border-left:6px solid #d97706; border-radius:16px; padding:14px; margin-top:10px; background:linear-gradient(180deg,#fffbeb,#ffffff); box-shadow:0 8px 18px rgba(217,119,6,.12)";
+    var own = document.createElement("div");
+    own.style.cssText = "font-size:19px; font-weight:700";
+    own.textContent = r.owner;
+    card.appendChild(own);
+    var addr = document.createElement("div");
+    addr.style.cssText = "font-size:14.5px; margin-top:2px";
+    addr.textContent = "Owner on record for " + smartCase(r.location) + ", " + city + ", NJ" + (zip ? " " + zip : " (ZIP not confirmed)");
+    card.appendChild(addr);
+    var ev = document.createElement("div");
+    ev.style.cssText = "font-size:13px; color:#33415c; margin:4px 0";
+    ev.textContent = r.district.town + " (District " + r.district.code + ")" + (classLabel(r.klass) ? " · " + classLabel(r.klass) : "") + (r.klass === "1" ? " · Vacant land — no house at this address" : "") + ". Tax records name the owner, who may not be who lives there — renters never show.";
+    card.appendChild(ev);
+    card.appendChild(revCopyButton(r));
+    box.appendChild(card);
+  });
+  if(!exact.length){
+    var n1 = document.createElement("div");
+    n1.style.cssText = "font-size:13.5px; color:#33415c; margin-top:6px";
+    n1.textContent = "No owner on record for that exact address in your 7 towns — I checked " + info.totalRows + " properties on that street." + (info.capped ? " That street is long, so I stopped after 400 listings per town; a number near the far end can be missed." : "");
+    box.appendChild(n1);
+  }
+  if(near.length){
+    var nh = document.createElement("div");
+    nh.style.cssText = "font-size:14px; font-weight:700; margin-top:14px; color:#33415c";
+    nh.textContent = exact.length ? "Same street, other numbers:" : "Same street, different numbers — a near miss is a clue, not a dead end:";
+    box.appendChild(nh);
+    near.forEach(function(r){
+      var row = document.createElement("div");
+      row.style.cssText = "border:1.5px solid #cbd5e1; border-left:6px solid #64748b; border-radius:14px; padding:10px 12px; margin-top:8px; background:#f8fafc";
+      var h = document.createElement("div");
+      h.style.cssText = "font-size:15.5px; font-weight:700";
+      h.textContent = smartCase(r.location) + ", " + r.district.town;
+      row.appendChild(h);
+      var ev = document.createElement("div");
+      ev.style.cssText = "font-size:13px; color:#33415c; margin:4px 0";
+      ev.textContent = "Owner on record: " + r.owner + (classLabel(r.klass) ? " · " + classLabel(r.klass) : "");
+      row.appendChild(ev);
+      box.appendChild(row);
+    });
+  }
+}
+async function runReverse(){
+  var box = $("revResult"); box.innerHTML = "";
+  var st = $("revStatus");
+  var parsed = parseAddrInput($("r-addr").value);
+  if(!parsed){ st.textContent = "Type the full street address with its house number, e.g. 2400 Shafto Rd."; return; }
+  ownersDataAsOf = "";
+  var wantKey = parsed.num + "|" + parsed.core;
+  var btn = $("revBtn"); btn.disabled = true;
+  var prog = $("revProg"), fill = $("revProgFill");
+  if(prog) prog.style.display = "block";
+  if(fill) fill.style.width = "0%";
+  st.classList.add("working");
+  st.textContent = "Walking " + smartCase(parsed.street) + " in the county records, all 7 towns…";
+  var exact = [], near = [], seen = {}, totalRows = 0, answeredAny = false, capped = false, pg1Done = 0;
+  async function oneDistrict(d){
+    for(var page = 1; page <= 4; page++){
+      var txt = await fetchTextM(relayUrl(locSearchUrl(d.code, parsed.nameOnly.toUpperCase(), page)), 15000);
+      if(page === 1){ pg1Done++; if(fill) fill.style.width = Math.round(pg1Done / OWNER_DISTRICTS.length * 70) + "%"; }
+      if(!txt || txt.length < 200) break;
+      answeredAny = true;
+      var rows = parseOwners(txt, true);
+      totalRows += rows.length;
+      rows.forEach(function(r){
+        r.district = d;
+        var k = streetKeyOf(r.location) + "|" + ownerNorm(r.owner);
+        if(seen[k]) return;
+        seen[k] = true;
+        if(streetKeyOf(r.location) === wantKey) exact.push(r);
+        else if(streetCoreOf(r.location) === parsed.core) near.push(r);
+      });
+      if(exact.some(function(r){ return r.district === d; })) break;
+      if(txt.split("[**More Info**]").length - 1 < 100) break;
+      if(page === 4) capped = true;
+    }
+  }
+  await Promise.all(OWNER_DISTRICTS.map(oneDistrict));
+  exact.sort(function(a, b){ return OWNER_DISTRICTS.indexOf(a.district) - OWNER_DISTRICTS.indexOf(b.district); });
+  var nearSorted = near.slice().sort(function(a, b){
+    var na = parseInt((a.location.match(/^\d+/) || ["0"])[0], 10) || 0;
+    var nb = parseInt((b.location.match(/^\d+/) || ["0"])[0], 10) || 0;
+    var target = parseInt(parsed.num, 10) || 0;
+    return Math.abs(na - target) - Math.abs(nb - target);
+  }).slice(0, 6);
+  if(answeredAny && exact.length){
+    st.textContent = "Found it — one more check, confirming the ZIP on the county detail page…";
+    var toCheck = exact.slice(0, 8);
+    await Promise.all(toCheck.map(async function(r){
+      var t = await fetchTextM(relayUrl(r.detailUrl), 12000);
+      r.detail = t ? parseDetailZip(t) : null;
+    }));
+  }
+  if(fill) fill.style.width = "100%";
+  if(prog) prog.style.display = "none";
+  st.classList.remove("working");
+  btn.disabled = false;
+  renderReverse(exact, nearSorted, { answered: answeredAny, totalRows: totalRows, capped: capped });
+  if(answeredAny){
+    st.textContent = exact.length ? "Found the owner on record. Tax records can lag a sale, so sanity-check before you rely on it." : "Done — no exact match for that address in the county records.";
+  }
+}
+function setMode(addr){
+  $("nameMode").style.display = addr ? "none" : "";
+  $("addrMode").style.display = addr ? "" : "none";
+  $("modeNameBtn").className = "modeBtn" + (addr ? "" : " on");
+  $("modeAddrBtn").className = "modeBtn" + (addr ? " on" : "");
+}
+$("modeNameBtn").addEventListener("click", function(){ setMode(false); });
+$("modeAddrBtn").addEventListener("click", function(){ setMode(true); });
+$("revBtn").addEventListener("click", runReverse);
 $("mineBtn").addEventListener("click", runSuggest);
 refreshOprs();
 buildSearches();
