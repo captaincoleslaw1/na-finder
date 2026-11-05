@@ -194,7 +194,7 @@
 </div>
 
 <p class="note">Privacy: a photo is read right here on your phone. Nothing is uploaded or stored. The searches open on the sites themselves, same as typing them in by hand.</p>
-<p class="ver">NA Finder v8</p>
+<p class="ver">NA Finder v9</p>
 
 <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
 <script>
@@ -1118,13 +1118,30 @@ function locSearchUrl(district, streetName, page, srchType){
   return "https://tax1.co.monmouth.nj.us/cgi-bin/inf.cgi?ms_user=monm&passwd=&srch_type=" + srchType + "&select_cc=1301&district=" + district +
     "&adv=2&out_type=2&ms_ln=100&p_loc=" + encodeURIComponent(streetName) + "&owner=&block=&lot=&qual=" + (page > 1 ? "&pageno=" + (page - 1) : "");
 }
+var SUFFIX_CLASS = { ST:"ST", STREET:"ST", AVE:"AVE", AVENUE:"AVE", RD:"RD", ROAD:"RD", CT:"CT", COURT:"CT", DR:"DR", DRIVE:"DR", LN:"LN", LANE:"LN", BLVD:"BLVD", BOULEVARD:"BLVD", PL:"PL", PLACE:"PL", CIR:"CIR", CIRCLE:"CIR", TER:"TER", TERRACE:"TER", HWY:"HWY", HIGHWAY:"HWY", PKWY:"PKWY", PARKWAY:"PKWY", TRL:"TRL", TRAIL:"TRL", SQ:"SQ", SQUARE:"SQ", LOOP:"LOOP", RUN:"RUN", ROW:"ROW", COVE:"COVE", PT:"PT", POINT:"PT", ALY:"ALY", ALLEY:"ALY" };
+var SUFFIX_FORMS = { ST:["ST","STREET"], AVE:["AVE","AVENUE"], RD:["RD","ROAD"], CT:["CT","COURT"], DR:["DR","DRIVE"], LN:["LN","LANE"], BLVD:["BLVD","BOULEVARD"], PL:["PL","PLACE"], CIR:["CIR","CIRCLE"], TER:["TER","TERRACE"], HWY:["HWY","HIGHWAY"], PKWY:["PKWY","PARKWAY"], TRL:["TRL","TRAIL"], SQ:["SQ","SQUARE"] };
+function streetPartsOf(str){
+  var s = String(str).toUpperCase().replace(/[.,]/g, " ").replace(/\s+/g, " ").trim();
+  var m = s.match(/^(\d+[A-Z]?)\s+(.+)$/);
+  var num = m ? m[1] : "";
+  var rest = (m ? m[2] : s).replace(/\s+(UNIT|APT|APARTMENT|STE|SUITE|#)\s*\S+$/, "").trim();
+  var toks = rest.split(" ");
+  var suf = "";
+  if(toks.length > 1 && SUFFIX_CLASS[toks[toks.length - 1]]){ suf = SUFFIX_CLASS[toks[toks.length - 1]]; toks = toks.slice(0, -1); }
+  return { num: num, name: toks.join(" ").toLowerCase(), suffix: suf };
+}
 function parseAddrInput(raw){
   var s = String(raw || "").trim().replace(/\s+/g, " ").replace(/,.*$/, "").trim();
   var m = s.match(/^(\d{1,6})\s+(.+)$/);
   if(!m) return null;
   var street = m[2].replace(/\s+(Apt|Apartment|Unit|Ste|Suite|#)\s*\S+$/i, "").trim();
   var nameOnly = street.replace(/\s+(St|Street|Ave|Avenue|Rd|Road|Ct|Court|Dr|Drive|Ln|Lane|Blvd|Boulevard|Way|Pl|Place|Cir|Circle|Ter|Terrace|Hwy|Highway|Pkwy|Parkway|Trail|Trl|Sq|Square|Loop|Run|Row|Cove|Point|Pt)\.?$/i, "").trim();
-  return { num: m[1], street: street, nameOnly: nameOnly || street, core: streetCoreOf(street) };
+  var parts = streetPartsOf(street);
+  var forms = [];
+  if(parts.suffix && SUFFIX_FORMS[parts.suffix]){
+    forms = SUFFIX_FORMS[parts.suffix].map(function(f){ return ((nameOnly || street) + " " + f).toUpperCase(); });
+  }
+  return { num: m[1], street: street, nameOnly: nameOnly || street, core: streetCoreOf(street), name: parts.name, suffix: parts.suffix, queryForms: forms };
 }
 function revCopyButton(r){
   var b = document.createElement("button");
@@ -1185,7 +1202,7 @@ function renderReverse(current, previous, near, info){
   if(!current.length && !previous.length){
     var n1 = document.createElement("div");
     n1.style.cssText = "font-size:13.5px; color:#33415c; margin-top:6px";
-    n1.textContent = "No owner on record for that exact address in your 7 towns — I checked " + info.totalRows + " properties on that street." + (info.capped ? " That street is long, so I stopped after 400 listings per town per list; a number near the far end can be missed." : "");
+    n1.textContent = "No owner on record for that exact address in your 7 towns — I checked " + info.totalRows + " properties on that street." + (info.capped ? " That street is long, so I stopped after 600 listings per town per list; a number near the far end can be missed." : "");
     box.appendChild(n1);
   } else if(!current.length){
     var n1b = document.createElement("div");
@@ -1219,7 +1236,6 @@ async function runReverse(){
   var parsed = parseAddrInput($("r-addr").value);
   if(!parsed){ st.textContent = "Type the full street address with its house number, e.g. 2400 Shafto Rd."; return; }
   ownersDataAsOf = "";
-  var wantKey = parsed.num + "|" + parsed.core;
   var btn = $("revBtn"); btn.disabled = true;
   var prog = $("revProg"), fill = $("revProgFill");
   if(prog) prog.style.display = "block";
@@ -1227,25 +1243,43 @@ async function runReverse(){
   st.classList.add("working");
   st.textContent = "Walking " + smartCase(parsed.street) + " in the county records, all 7 towns…";
   var current = [], histAll = [], near = [], seenNear = {}, totalRows = 0, answeredAny = false, capped = false, distDone = 0;
+  // Exact/near matching respects the street suffix (v9): "83 Park Blvd" must
+  // not match "83 Park Road" — compare number + street name + suffix class.
+  function isExact(r){
+    var rp = streetPartsOf(r.location);
+    return rp.num === parsed.num && rp.name === parsed.name && (!parsed.suffix || rp.suffix === parsed.suffix);
+  }
+  function isNear(r){
+    var rp = streetPartsOf(r.location);
+    return rp.num !== parsed.num && rp.name === parsed.name && (!parsed.suffix || rp.suffix === parsed.suffix);
+  }
   function maybeNear(r){
-    if(streetCoreOf(r.location) !== parsed.core) return;
+    if(!isNear(r)) return;
     var k = streetKeyOf(r.location) + "|" + ownerNorm(r.owner);
     if(seenNear[k]) return;
     seenNear[k] = true;
     near.push(r);
   }
-  async function walk(d, srchType, sink){
-    var seen = {};
-    for(var page = 1; page <= 4; page++){
-      var txt = await fetchTextM(relayUrl(locSearchUrl(d.code, parsed.nameOnly.toUpperCase(), page, srchType)), 15000);
-      if(!txt || txt.length < 200) return;
+  // The county accepts the suffix in p_loc when it is spelled the way the
+  // county stores it — and the stored form varies by street (verified Nov 5,
+  // 2026: "PARK BLVD" returns Ocean Twp's 34 Park Blvd parcels while "PARK
+  // BOULEVARD" returns 0; Shafto is stored as "SHAFTO ROAD", Roosevelt as
+  // "ROOSEVELT AVE"). Try the typed suffix's stored forms first (small,
+  // fast result sets), then fall back to the bare street name with the
+  // suffix enforced on-device by isExact/isNear.
+  async function walkQuery(d, srchType, q, sink, seen){
+    var anyRows = false;
+    for(var page = 1; page <= 6; page++){
+      var txt = await fetchTextM(relayUrl(locSearchUrl(d.code, q, page, srchType)), 15000);
+      if(!txt || txt.length < 200) return anyRows;
       answeredAny = true;
       var rows = parseOwners(txt, true);
       totalRows += rows.length;
+      if(rows.length) anyRows = true;
       var foundHere = false;
       rows.forEach(function(r){
         r.district = d;
-        if(streetKeyOf(r.location) === wantKey){
+        if(isExact(r)){
           var k = ownerNorm(r.owner) + "|" + (r.klass || "");
           if(seen[k]) return;
           seen[k] = true;
@@ -1255,14 +1289,24 @@ async function runReverse(){
           maybeNear(r);
         }
       });
-      if(foundHere) return;
-      if(rows.length < 100) return;
-      if(page === 4) capped = true;
+      if(foundHere) return true;
+      if(rows.length < 100) return anyRows;
+      if(page === 6) capped = true;
+    }
+    return anyRows;
+  }
+  async function walkList(d, srchType, sink){
+    var seen = {};
+    var queries = parsed.queryForms.slice();
+    queries.push(parsed.nameOnly.toUpperCase());
+    for(var qi = 0; qi < queries.length; qi++){
+      var got = await walkQuery(d, srchType, queries[qi], sink, seen);
+      if(got) return;
     }
   }
   async function oneDistrict(d){
-    await walk(d, 1, current);
-    await walk(d, 2, histAll);
+    await walkList(d, 1, current);
+    await walkList(d, 2, histAll);
     distDone++;
     if(fill) fill.style.width = Math.round(distDone / OWNER_DISTRICTS.length * 70) + "%";
   }
