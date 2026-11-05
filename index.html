@@ -108,7 +108,7 @@
   <label for="r-addr">Street address</label>
   <input id="r-addr" autocomplete="off" placeholder="e.g. 2400 Shafto Rd">
   <button class="big" id="revBtn" style="margin-top:12px">🤖 Find the owner for me</button>
-  <p class="note" style="margin-top:6px">One tap. It walks that street in the county tax records for all 7 of your towns and shows the <b>owner on record</b> for that exact address. Owners only — a renter will not show up here.</p>
+  <p class="note" style="margin-top:6px">One tap. It walks that street in the county tax records for all 7 of your towns. The <b>current owner</b> shows in green; earlier owners from the deed/sales records show below in yellow. Owners only — a renter will not show up here.</p>
   <div id="revStatus" class="note" style="margin-top:8px"></div>
   <div id="revProg"><div id="revProgFill"></div></div>
   <div id="revResult"></div>
@@ -194,7 +194,7 @@
 </div>
 
 <p class="note">Privacy: a photo is read right here on your phone. Nothing is uploaded or stored. The searches open on the sites themselves, same as typing them in by hand.</p>
-<p class="ver">NA Finder v7</p>
+<p class="ver">NA Finder v8</p>
 
 <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
 <script>
@@ -1108,9 +1108,15 @@ async function runMiner(){
 // street's parcels (100 per page, pageno for more). Verified Nov 5, 2026 on
 // SHAFTO in Tinton Falls and OLD ORCHARD in Ocean Township. So the app
 // fetches the street town by town and matches the house number right here.
-function locSearchUrl(district, streetName, page){
-  return "https://tax1.co.monmouth.nj.us/cgi-bin/inf.cgi?ms_user=monm&passwd=&srch_type=2&select_cc=1301&district=" + district +
-    "&adv=2&out_type=2&ms_ln=100&p_loc=" + encodeURIComponent(streetName) + "&owner=&block=&lot=&qual=" + (page > 1 ? "&pageno=" + page : "");
+// Two county lists are walked (v8, at Thomas's request): srch_type=1 is the
+// Current Owners list — one record per parcel, shown as the green current
+// owner card; srch_type=2 is the Deed/SR1A sales list — one row per sale,
+// shown below as previous owners with the current owner's own rows removed.
+// Pagination quirk (verified Nov 5, 2026): pageno is the page index minus 1 —
+// no pageno shows Page 1, pageno=1 shows Page 2, pageno=2 shows Page 3.
+function locSearchUrl(district, streetName, page, srchType){
+  return "https://tax1.co.monmouth.nj.us/cgi-bin/inf.cgi?ms_user=monm&passwd=&srch_type=" + srchType + "&select_cc=1301&district=" + district +
+    "&adv=2&out_type=2&ms_ln=100&p_loc=" + encodeURIComponent(streetName) + "&owner=&block=&lot=&qual=" + (page > 1 ? "&pageno=" + (page - 1) : "");
 }
 function parseAddrInput(raw){
   var s = String(raw || "").trim().replace(/\s+/g, " ").replace(/,.*$/, "").trim();
@@ -1126,7 +1132,29 @@ function revCopyButton(r){
   b.addEventListener("click", function(){ copyText(r.owner, $("revStatus"), "Copied: " + r.owner); });
   return b;
 }
-function renderReverse(exact, near, info){
+function revOwnerCard(r, green){
+  var city = r.detail ? r.detail.city : (r.mailCity || r.district.city);
+  var zip = r.detail ? r.detail.zip : "";
+  var card = document.createElement("div");
+  card.style.cssText = green
+    ? "border:1.5px solid #86efac; border-left:6px solid #16a34a; border-radius:16px; padding:14px; margin-top:10px; background:linear-gradient(180deg,#f0fdf4,#ffffff); box-shadow:0 8px 18px rgba(22,163,74,.14)"
+    : "border:1.5px solid #fcd34d; border-left:6px solid #d97706; border-radius:16px; padding:14px; margin-top:10px; background:linear-gradient(180deg,#fffbeb,#ffffff); box-shadow:0 8px 18px rgba(217,119,6,.12)";
+  var own = document.createElement("div");
+  own.style.cssText = "font-size:19px; font-weight:700";
+  own.textContent = r.owner;
+  card.appendChild(own);
+  var addr = document.createElement("div");
+  addr.style.cssText = "font-size:14.5px; margin-top:2px";
+  addr.textContent = (green ? "Current owner of " : "Earlier owner on record for ") + smartCase(r.location) + ", " + city + ", NJ" + (zip ? " " + zip : " (ZIP not confirmed)");
+  card.appendChild(addr);
+  var ev = document.createElement("div");
+  ev.style.cssText = "font-size:13px; color:#33415c; margin:4px 0";
+  ev.textContent = r.district.town + " (District " + r.district.code + ")" + (classLabel(r.klass) ? " · " + classLabel(r.klass) : "") + (r.klass === "1" ? " · Vacant land — no house at this address" : "") + (green ? ". From the county's Current Owners list. The owner may not be who lives there — renters never show." : ". From the county's deed/sales records — a new row was added at each sale.");
+  card.appendChild(ev);
+  card.appendChild(revCopyButton(r));
+  return card;
+}
+function renderReverse(current, previous, near, info){
   var box = $("revResult");
   box.innerHTML = "";
   var head = document.createElement("div");
@@ -1140,36 +1168,35 @@ function renderReverse(exact, near, info){
     box.appendChild(n0);
     return;
   }
-  exact.forEach(function(r){
-    var city = r.detail ? r.detail.city : (r.mailCity || r.district.city);
-    var zip = r.detail ? r.detail.zip : "";
-    var card = document.createElement("div");
-    card.style.cssText = "border:1.5px solid #fcd34d; border-left:6px solid #d97706; border-radius:16px; padding:14px; margin-top:10px; background:linear-gradient(180deg,#fffbeb,#ffffff); box-shadow:0 8px 18px rgba(217,119,6,.12)";
-    var own = document.createElement("div");
-    own.style.cssText = "font-size:19px; font-weight:700";
-    own.textContent = r.owner;
-    card.appendChild(own);
-    var addr = document.createElement("div");
-    addr.style.cssText = "font-size:14.5px; margin-top:2px";
-    addr.textContent = "Owner on record for " + smartCase(r.location) + ", " + city + ", NJ" + (zip ? " " + zip : " (ZIP not confirmed)");
-    card.appendChild(addr);
-    var ev = document.createElement("div");
-    ev.style.cssText = "font-size:13px; color:#33415c; margin:4px 0";
-    ev.textContent = r.district.town + " (District " + r.district.code + ")" + (classLabel(r.klass) ? " · " + classLabel(r.klass) : "") + (r.klass === "1" ? " · Vacant land — no house at this address" : "") + ". Tax records name the owner, who may not be who lives there — renters never show.";
-    card.appendChild(ev);
-    card.appendChild(revCopyButton(r));
-    box.appendChild(card);
-  });
-  if(!exact.length){
+  if(current.length){
+    var ch = document.createElement("div");
+    ch.style.cssText = "font-size:14.5px; font-weight:700; margin-top:12px; color:#166534";
+    ch.textContent = "✅ Current owner";
+    box.appendChild(ch);
+    current.forEach(function(r){ box.appendChild(revOwnerCard(r, true)); });
+  }
+  if(previous.length){
+    var ph = document.createElement("div");
+    ph.style.cssText = "font-size:14.5px; font-weight:700; margin-top:14px; color:#92400e";
+    ph.textContent = "🕘 Previous owners";
+    box.appendChild(ph);
+    previous.forEach(function(r){ box.appendChild(revOwnerCard(r, false)); });
+  }
+  if(!current.length && !previous.length){
     var n1 = document.createElement("div");
     n1.style.cssText = "font-size:13.5px; color:#33415c; margin-top:6px";
-    n1.textContent = "No owner on record for that exact address in your 7 towns — I checked " + info.totalRows + " properties on that street." + (info.capped ? " That street is long, so I stopped after 400 listings per town; a number near the far end can be missed." : "");
+    n1.textContent = "No owner on record for that exact address in your 7 towns — I checked " + info.totalRows + " properties on that street." + (info.capped ? " That street is long, so I stopped after 400 listings per town per list; a number near the far end can be missed." : "");
     box.appendChild(n1);
+  } else if(!current.length){
+    var n1b = document.createElement("div");
+    n1b.style.cssText = "font-size:13.5px; color:#33415c; margin-top:6px";
+    n1b.textContent = "No current-owner record for that exact address — the earlier owners below are what the county has.";
+    box.appendChild(n1b);
   }
   if(near.length){
     var nh = document.createElement("div");
     nh.style.cssText = "font-size:14px; font-weight:700; margin-top:14px; color:#33415c";
-    nh.textContent = exact.length ? "Same street, other numbers:" : "Same street, different numbers — a near miss is a clue, not a dead end:";
+    nh.textContent = (current.length || previous.length) ? "Same street, other numbers:" : "Same street, different numbers — a near miss is a clue, not a dead end:";
     box.appendChild(nh);
     near.forEach(function(r){
       var row = document.createElement("div");
@@ -1199,39 +1226,72 @@ async function runReverse(){
   if(fill) fill.style.width = "0%";
   st.classList.add("working");
   st.textContent = "Walking " + smartCase(parsed.street) + " in the county records, all 7 towns…";
-  var exact = [], near = [], seen = {}, totalRows = 0, answeredAny = false, capped = false, pg1Done = 0;
-  async function oneDistrict(d){
+  var current = [], histAll = [], near = [], seenNear = {}, totalRows = 0, answeredAny = false, capped = false, distDone = 0;
+  function maybeNear(r){
+    if(streetCoreOf(r.location) !== parsed.core) return;
+    var k = streetKeyOf(r.location) + "|" + ownerNorm(r.owner);
+    if(seenNear[k]) return;
+    seenNear[k] = true;
+    near.push(r);
+  }
+  async function walk(d, srchType, sink){
+    var seen = {};
     for(var page = 1; page <= 4; page++){
-      var txt = await fetchTextM(relayUrl(locSearchUrl(d.code, parsed.nameOnly.toUpperCase(), page)), 15000);
-      if(page === 1){ pg1Done++; if(fill) fill.style.width = Math.round(pg1Done / OWNER_DISTRICTS.length * 70) + "%"; }
-      if(!txt || txt.length < 200) break;
+      var txt = await fetchTextM(relayUrl(locSearchUrl(d.code, parsed.nameOnly.toUpperCase(), page, srchType)), 15000);
+      if(!txt || txt.length < 200) return;
       answeredAny = true;
       var rows = parseOwners(txt, true);
       totalRows += rows.length;
+      var foundHere = false;
       rows.forEach(function(r){
         r.district = d;
-        var k = streetKeyOf(r.location) + "|" + ownerNorm(r.owner);
-        if(seen[k]) return;
-        seen[k] = true;
-        if(streetKeyOf(r.location) === wantKey) exact.push(r);
-        else if(streetCoreOf(r.location) === parsed.core) near.push(r);
+        if(streetKeyOf(r.location) === wantKey){
+          var k = ownerNorm(r.owner) + "|" + (r.klass || "");
+          if(seen[k]) return;
+          seen[k] = true;
+          sink.push(r);
+          foundHere = true;
+        } else {
+          maybeNear(r);
+        }
       });
-      if(exact.some(function(r){ return r.district === d; })) break;
-      if(txt.split("[**More Info**]").length - 1 < 100) break;
+      if(foundHere) return;
+      if(rows.length < 100) return;
       if(page === 4) capped = true;
     }
   }
+  async function oneDistrict(d){
+    await walk(d, 1, current);
+    await walk(d, 2, histAll);
+    distDone++;
+    if(fill) fill.style.width = Math.round(distDone / OWNER_DISTRICTS.length * 70) + "%";
+  }
   await Promise.all(OWNER_DISTRICTS.map(oneDistrict));
-  exact.sort(function(a, b){ return OWNER_DISTRICTS.indexOf(a.district) - OWNER_DISTRICTS.indexOf(b.district); });
+  current.sort(function(a, b){ return OWNER_DISTRICTS.indexOf(a.district) - OWNER_DISTRICTS.indexOf(b.district); });
+  // Previous owners = sales-list rows for this address, minus the current
+  // owner's own rows, deduped to one row per owner (residential preferred).
+  var previous = [], prevByKey = {};
+  histAll.forEach(function(r){
+    var isCurrent = current.some(function(c){ return c.district === r.district && ownerNorm(c.owner) === ownerNorm(r.owner); });
+    if(isCurrent) return;
+    var k = r.district.code + "|" + ownerNorm(r.owner);
+    if(prevByKey[k]){
+      var idx = previous.indexOf(prevByKey[k]);
+      if(String(r.klass).charAt(0) === "2" && String(prevByKey[k].klass).charAt(0) !== "2") previous[idx] = r, prevByKey[k] = r;
+      return;
+    }
+    prevByKey[k] = r;
+    previous.push(r);
+  });
   var nearSorted = near.slice().sort(function(a, b){
     var na = parseInt((a.location.match(/^\d+/) || ["0"])[0], 10) || 0;
     var nb = parseInt((b.location.match(/^\d+/) || ["0"])[0], 10) || 0;
     var target = parseInt(parsed.num, 10) || 0;
     return Math.abs(na - target) - Math.abs(nb - target);
   }).slice(0, 6);
-  if(answeredAny && exact.length){
-    st.textContent = "Found it — one more check, confirming the ZIP on the county detail page…";
-    var toCheck = exact.slice(0, 8);
+  if(answeredAny && current.length){
+    st.textContent = "Found the current owner — one more check, confirming the ZIP on the county detail page…";
+    var toCheck = current.slice(0, 4);
     await Promise.all(toCheck.map(async function(r){
       var t = await fetchTextM(relayUrl(r.detailUrl), 12000);
       r.detail = t ? parseDetailZip(t) : null;
@@ -1241,9 +1301,15 @@ async function runReverse(){
   if(prog) prog.style.display = "none";
   st.classList.remove("working");
   btn.disabled = false;
-  renderReverse(exact, nearSorted, { answered: answeredAny, totalRows: totalRows, capped: capped });
+  renderReverse(current, previous, nearSorted, { answered: answeredAny, totalRows: totalRows, capped: capped });
   if(answeredAny){
-    st.textContent = exact.length ? "Found the owner on record. Tax records can lag a sale, so sanity-check before you rely on it." : "Done — no exact match for that address in the county records.";
+    if(current.length){
+      st.textContent = "Found the current owner on record" + (previous.length ? ", plus " + previous.length + " earlier owner" + (previous.length > 1 ? "s" : "") + " from the sales records below." : ".") + " Tax records can lag a sale, so sanity-check before you rely on it.";
+    } else if(previous.length){
+      st.textContent = "No current-owner record for that address — the earlier owners from the sales records are below.";
+    } else {
+      st.textContent = "Done — no record for that address in the county records.";
+    }
   }
 }
 function setMode(addr){
