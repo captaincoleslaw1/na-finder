@@ -71,7 +71,7 @@
 </style>
 </head>
 <body>
-<!-- NA Finder v11: range addresses (1108-1110) parse and match, and reverse paging follows the county's stated record count. v10 added trailing-E spelling variants (county files Romaine Pkwy as ROMAIN); v9 made matching suffix-aware (Blvd is not Road). -->
+<!-- NA Finder v12: card cities are the property's town (from the district); the detail page's city/ZIP is the owner's MAILING address, now shown only as a labeled tax-mail note. v11: range addresses parse/match, paging follows the county's stated record count. v10: trailing-E spelling variants. -->
 
 <div class="hero"><h1>🏠 NA Finder</h1><p class="sub">NA: No Address. Letter has a name but no address, or the wrong one? Type the name, check the county owner records, then let the web miner try. Covers your whole delivery area: 07712, Allenhurst (07711) and Deal (07723). It also runs backwards: type an address, get the owner on record.</p></div>
 
@@ -195,7 +195,7 @@
 </div>
 
 <p class="note">Privacy: a photo is read right here on your phone. Nothing is uploaded or stored. The searches open on the sites themselves, same as typing them in by hand.</p>
-<p class="ver">NA Finder v11</p>
+<p class="ver">NA Finder v12</p>
 
 <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
 <script>
@@ -708,13 +708,13 @@ function fetchTextM(url, ms){
 // return full record lists through the relay, "LAST, FIRST" narrows, and the
 // m4.cgi detail pages expose "City State: CITY NJ ZIP" for the ZIP check.
 var OWNER_DISTRICTS = [
-  { code: "1337", town: "Ocean Township", city: "Ocean" },
-  { code: "1304", town: "Asbury Park", city: "Asbury Park" },
-  { code: "1349", town: "Tinton Falls", city: "Tinton Falls" },
-  { code: "1322", town: "Interlaken", city: "Interlaken" },
-  { code: "1302", town: "Allenhurst", city: "Allenhurst" },
-  { code: "1311", town: "Deal", city: "Deal" },
-  { code: "1335", town: "Neptune Township", city: "Neptune" }
+  { code: "1337", town: "Ocean Township", city: "Ocean", zip: "07712" },
+  { code: "1304", town: "Asbury Park", city: "Asbury Park", zip: "07712" },
+  { code: "1349", town: "Tinton Falls", city: "Tinton Falls", zip: "07712" },
+  { code: "1322", town: "Interlaken", city: "Interlaken", zip: "07712" },
+  { code: "1302", town: "Allenhurst", city: "Allenhurst", zip: "07711" },
+  { code: "1311", town: "Deal", city: "Deal", zip: "07723" },
+  { code: "1335", town: "Neptune Township", city: "Neptune", zip: "07712" }
 ];
 var OUR_ZIPS = { "07712": true, "07711": true, "07723": true };
 var ownersFinalists = [];
@@ -773,6 +773,12 @@ function ownerNameScore(owner, first){
   for(var j = 0; j < toks.length; j++){ if(toks[j].charAt(0) === f.charAt(0)) return 2; }
   return 0;
 }
+// The detail page's "City State" line is the OWNER'S MAILING address (the
+// "Street:" line above it is the owner's mailing street) — NOT the
+// property's city/ZIP. The property's town is on the same page as
+// "District: NNNN TOWN NAME", which the app already knows from the
+// district the record came from. So this returns the mailing city/ZIP,
+// used only to flag absentee owners (v12) — never as the property address.
 function parseDetailZip(text){
   var body = String(text);
   var mc = body.indexOf("Markdown Content:");
@@ -831,21 +837,21 @@ function renderOwners(confirmed, unconfirmed, outZ, totalFound, tooMany){
   if(!list.length){
     var n2b = document.createElement("div");
     n2b.style.cssText = "font-size:13.5px; color:#33415c; margin-top:6px";
-    n2b.textContent = "Nothing inside your ZIPs — but this name owns property nearby (below). Checking the web too…";
+    n2b.textContent = "No owner-occupant match — but this name owns property in your towns with tax mail going elsewhere (below). Checking the web too…";
     box.appendChild(n2b);
   }
   list.forEach(function(r){
-    var city = r.detail ? r.detail.city : r.district.city;
-    var zip = r.detail ? r.detail.zip : "";
+    var city = r.district.city;
+    var zip = r.district.zip;
     var card = document.createElement("div");
     card.style.cssText = "border:1.5px solid #fdba74; border-left:6px solid #ea580c; border-radius:16px; padding:14px; margin-top:10px; background:linear-gradient(180deg,#fff7ed,#ffffff); box-shadow:0 8px 18px rgba(234,88,12,.12)";
     var h = document.createElement("div");
     h.style.cssText = "font-size:17px; font-weight:700";
-    h.textContent = smartCase(r.location) + ", " + city + ", NJ" + (zip ? " " + zip : " (ZIP not confirmed)");
+    h.textContent = smartCase(r.location) + ", " + city + ", NJ " + zip;
     card.appendChild(h);
     var ev = document.createElement("div");
     ev.style.cssText = "font-size:13px; color:#33415c; margin:4px 0";
-    ev.textContent = "Owner on record: " + r.owner + " — " + r.district.town + " (District " + r.district.code + ")" + (classLabel(r.klass) ? " · " + classLabel(r.klass) : "") + (r.detail ? "" : ". The county detail page did not answer, so the ZIP could not be confirmed — double-check this one.");
+    ev.textContent = "Owner on record: " + r.owner + " — " + r.district.town + " (District " + r.district.code + ")" + (classLabel(r.klass) ? " · " + classLabel(r.klass) : "") + (r.detail && r.detail.city !== city ? " · Owner's tax mail goes to " + r.detail.city + ", NJ " + r.detail.zip + " — may not live there." : "");
     card.appendChild(ev);
     card.appendChild(ownersUseButton(r, city, zip));
     box.appendChild(card);
@@ -853,20 +859,20 @@ function renderOwners(confirmed, unconfirmed, outZ, totalFound, tooMany){
   if(outZ && outZ.length){
     var oh = document.createElement("div");
     oh.style.cssText = "font-size:14px; font-weight:700; margin-top:14px; color:#33415c";
-    oh.textContent = "Also under this name — outside your ZIPs (a family or business property can still be the lead you need):";
+    oh.textContent = "Also under this name — the property is in your towns, but the owner's tax mail goes outside your area (absentee owner; still a possible lead):";
     box.appendChild(oh);
     outZ.forEach(function(r){
       var row = document.createElement("div");
       row.style.cssText = "border:1.5px solid #cbd5e1; border-left:6px solid #64748b; border-radius:14px; padding:10px 12px; margin-top:8px; background:#f8fafc";
       var h = document.createElement("div");
       h.style.cssText = "font-size:15.5px; font-weight:700";
-      h.textContent = smartCase(r.location) + ", " + r.detail.city + ", NJ " + r.detail.zip;
+      h.textContent = smartCase(r.location) + ", " + r.district.city + ", NJ " + r.district.zip;
       row.appendChild(h);
       var ev = document.createElement("div");
       ev.style.cssText = "font-size:13px; color:#33415c; margin:4px 0";
-      ev.textContent = "Owner on record: " + r.owner + " — " + r.district.town + (classLabel(r.klass) ? " · " + classLabel(r.klass) : "") + " · ZIP outside 07712 / 07711 / 07723";
+      ev.textContent = "Owner on record: " + r.owner + " — " + r.district.town + (classLabel(r.klass) ? " · " + classLabel(r.klass) : "") + " · Owner's tax mail: " + r.detail.city + ", NJ " + r.detail.zip;
       row.appendChild(ev);
-      row.appendChild(ownersUseButton(r, r.detail.city, r.detail.zip));
+      row.appendChild(ownersUseButton(r, r.district.city, r.district.zip));
       box.appendChild(row);
     });
   }
@@ -933,11 +939,13 @@ async function runOwners(){
     var t = await fetchTextM(relayUrl(r.detailUrl), 12000);
     r.detail = t ? parseDetailZip(t) : null;
   }));
+  // Every candidate's PROPERTY is in one of the 7 towns by construction.
+  // r.detail is the owner's MAILING city/ZIP: a local mailing ZIP suggests
+  // an owner-occupant; a far mailing ZIP means an absentee owner (v12).
   var confirmed = [], unconfirmed = [], outZ = [];
   toCheck.forEach(function(r){
-    if(r.detail){
-      if(OUR_ZIPS[r.detail.zip]) confirmed.push(r); else outZ.push(r);
-    } else { unconfirmed.push(r); }
+    if(r.detail && !OUR_ZIPS[r.detail.zip]) outZ.push(r);
+    else confirmed.push(r);
   });
   ownersFinalists = confirmed.slice(0, 6);
   renderOwners(confirmed.slice(0, 6), unconfirmed.slice(0, 2), outZ.slice(0, 4), all.length, false);
@@ -1187,8 +1195,14 @@ function revCopyButton(r){
   return b;
 }
 function revOwnerCard(r, green){
-  var city = r.detail ? r.detail.city : (r.mailCity || r.district.city);
-  var zip = r.detail ? r.detail.zip : "";
+  // The property's city/ZIP come from the district the record was found
+  // in. r.detail / r.mailCity are the OWNER'S MAILING city — showing them
+  // as the property's city put "Howell" on an Asbury Park house (v12).
+  var city = r.district.city;
+  var zip = r.district.zip;
+  var mailNote = "";
+  if(r.detail && r.detail.city !== city) mailNote = " Owner's tax mail goes to " + r.detail.city + ", NJ " + r.detail.zip + " — they may not live at this address.";
+  else if(!r.detail && r.mailCity && r.mailCity !== city) mailNote = " Owner's tax mail goes to " + r.mailCity + ", NJ — they may not live at this address.";
   var card = document.createElement("div");
   card.style.cssText = green
     ? "border:1.5px solid #86efac; border-left:6px solid #16a34a; border-radius:16px; padding:14px; margin-top:10px; background:linear-gradient(180deg,#f0fdf4,#ffffff); box-shadow:0 8px 18px rgba(22,163,74,.14)"
@@ -1199,11 +1213,11 @@ function revOwnerCard(r, green){
   card.appendChild(own);
   var addr = document.createElement("div");
   addr.style.cssText = "font-size:14.5px; margin-top:2px";
-  addr.textContent = (green ? "Current owner of " : "Earlier owner on record for ") + smartCase(r.location) + ", " + city + ", NJ" + (zip ? " " + zip : " (ZIP not confirmed)");
+  addr.textContent = (green ? "Current owner of " : "Earlier owner on record for ") + smartCase(r.location) + ", " + city + ", NJ " + zip;
   card.appendChild(addr);
   var ev = document.createElement("div");
   ev.style.cssText = "font-size:13px; color:#33415c; margin:4px 0";
-  ev.textContent = r.district.town + " (District " + r.district.code + ")" + (classLabel(r.klass) ? " · " + classLabel(r.klass) : "") + (r.klass === "1" ? " · Vacant land — no house at this address" : "") + (green ? ". From the county's Current Owners list. The owner may not be who lives there — renters never show." : ". From the county's deed/sales records — a new row was added at each sale.");
+  ev.textContent = r.district.town + " (District " + r.district.code + ")" + (classLabel(r.klass) ? " · " + classLabel(r.klass) : "") + (r.klass === "1" ? " · Vacant land — no house at this address" : "") + (green ? ". From the county's Current Owners list. The owner may not be who lives there — renters never show." : ". From the county's deed/sales records — a new row was added at each sale.") + mailNote;
   card.appendChild(ev);
   card.appendChild(revCopyButton(r));
   return card;
