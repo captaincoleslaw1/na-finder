@@ -71,7 +71,7 @@
 </style>
 </head>
 <body>
-<!-- NA Finder v12: card cities are the property's town (from the district); the detail page's city/ZIP is the owner's MAILING address, now shown only as a labeled tax-mail note. v11: range addresses parse/match, paging follows the county's stated record count. v10: trailing-E spelling variants. -->
+<!-- NA Finder v13: directional streets (Rolling Meadows Blvd N/S, incl. the county's fused BLVDS/BLVDN forms) — partial street names now match, and a named direction excludes the twin street. v12: card cities are the property's town; the detail-page city is the owner's MAILING address. v11: range addresses; paging follows the county's record count. -->
 
 <div class="hero"><h1>🏠 NA Finder</h1><p class="sub">NA: No Address. Letter has a name but no address, or the wrong one? Type the name, check the county owner records, then let the web miner try. Covers your whole delivery area: 07712, Allenhurst (07711) and Deal (07723). It also runs backwards: type an address, get the owner on record.</p></div>
 
@@ -195,7 +195,7 @@
 </div>
 
 <p class="note">Privacy: a photo is read right here on your phone. Nothing is uploaded or stored. The searches open on the sites themselves, same as typing them in by hand.</p>
-<p class="ver">NA Finder v12</p>
+<p class="ver">NA Finder v13</p>
 
 <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
 <script>
@@ -1129,6 +1129,17 @@ function locSearchUrl(district, streetName, page, srchType){
 }
 var SUFFIX_CLASS = { ST:"ST", STREET:"ST", AVE:"AVE", AVENUE:"AVE", RD:"RD", ROAD:"RD", CT:"CT", COURT:"CT", DR:"DR", DRIVE:"DR", LN:"LN", LANE:"LN", BLVD:"BLVD", BOULEVARD:"BLVD", PL:"PL", PLACE:"PL", CIR:"CIR", CIRCLE:"CIR", TER:"TER", TERRACE:"TER", HWY:"HWY", HIGHWAY:"HWY", PKWY:"PKWY", PARKWAY:"PKWY", TRL:"TRL", TRAIL:"TRL", SQ:"SQ", SQUARE:"SQ", LOOP:"LOOP", RUN:"RUN", ROW:"ROW", COVE:"COVE", PT:"PT", POINT:"PT", ALY:"ALY", ALLEY:"ALY" };
 var SUFFIX_FORMS = { ST:["ST","STREET"], AVE:["AVE","AVENUE"], RD:["RD","ROAD"], CT:["CT","COURT"], DR:["DR","DRIVE"], LN:["LN","LANE"], BLVD:["BLVD","BOULEVARD"], PL:["PL","PLACE"], CIR:["CIR","CIRCLE"], TER:["TER","TERRACE"], HWY:["HWY","HIGHWAY"], PKWY:["PKWY","PARKWAY"], TRL:["TRL","TRAIL"], SQ:["SQ","SQUARE"] };
+// Directionals (v13): some streets exist as N/S (or E/W) twins — Rolling
+// Meadows Blvd in Ocean Twp is filed three ways by the county: "BLVD S",
+// "BLVDS" and "BLVDN" (directional fused onto the suffix, no space).
+var DIR_TOKENS = { N: "N", NORTH: "N", S: "S", SOUTH: "S", E: "E", EAST: "E", W: "W", WEST: "W" };
+function fusedSplit(tok){
+  if(tok.length < 3) return null;
+  var d = DIR_TOKENS[tok.charAt(tok.length - 1)];
+  if(!d) return null;
+  var stem = tok.slice(0, -1);
+  return SUFFIX_CLASS[stem] ? { suffix: SUFFIX_CLASS[stem], dir: d } : null;
+}
 function streetPartsOf(str){
   var s = String(str).toUpperCase().replace(/[.,]/g, " ").replace(/\s+/g, " ").trim();
   var m = s.match(/^(\d+[A-Z]?)(?:-(\d+[A-Z]?))?\s+(.+)$/);
@@ -1141,9 +1152,20 @@ function streetPartsOf(str){
   }
   var rest = (m ? m[3] : s).replace(/\s+(UNIT|APT|APARTMENT|STE|SUITE|#)\s*\S+$/, "").trim();
   var toks = rest.split(" ");
-  var suf = "";
-  if(toks.length > 1 && SUFFIX_CLASS[toks[toks.length - 1]]){ suf = SUFFIX_CLASS[toks[toks.length - 1]]; toks = toks.slice(0, -1); }
-  return { num: num, numEnd: numEnd, name: toks.join(" ").toLowerCase(), suffix: suf };
+  // Peel the suffix and a trailing directional off the name, in either
+  // order ("BLVD S", "S BLVD"), including the fused county form ("BLVDS").
+  // Never peel the last remaining name token, so "North Ave" keeps NORTH
+  // as its name.
+  var suf = "", dir = "";
+  for(var pass = 0; pass < 3 && toks.length > 1; pass++){
+    var last = toks[toks.length - 1];
+    if(!suf && SUFFIX_CLASS[last]){ suf = SUFFIX_CLASS[last]; toks.pop(); continue; }
+    if(!dir && DIR_TOKENS[last]){ dir = DIR_TOKENS[last]; toks.pop(); continue; }
+    var fs = (!suf && !dir) ? fusedSplit(last) : null;
+    if(fs){ suf = fs.suffix; dir = fs.dir; toks.pop(); continue; }
+    break;
+  }
+  return { num: num, numEnd: numEnd, name: toks.join(" ").toLowerCase(), suffix: suf, dir: dir };
 }
 // The county sometimes files a street under a different spelling than the
 // postal one (verified Nov 7, 2026: the real street is "Romaine Pkwy", the
@@ -1165,7 +1187,16 @@ function parseAddrInput(raw){
   var street = m[2].replace(/\s+(Apt|Apartment|Unit|Ste|Suite|#)\s*\S+$/i, "").trim();
   var nameOnly = street.replace(/\s+(St|Street|Ave|Avenue|Rd|Road|Ct|Court|Dr|Drive|Ln|Lane|Blvd|Boulevard|Way|Pl|Place|Cir|Circle|Ter|Terrace|Hwy|Highway|Pkwy|Parkway|Trail|Trl|Sq|Square|Loop|Run|Row|Cove|Point|Pt)\.?$/i, "").trim();
   var parts = streetPartsOf(street);
-  var base = nameOnly || street;
+  // Base name for queries: the typed street with suffix AND directional
+  // tokens peeled token-wise (v13), so "Rolling Meadows Blvd S" queries
+  // as ROLLING MEADOWS + BLVD forms — the county's bare-name search
+  // prefix-matches every stored variant, fused ones included.
+  var rawToks = street.toUpperCase().replace(/\./g, "").split(/\s+/).filter(Boolean);
+  while(rawToks.length > 1){
+    var lt = rawToks[rawToks.length - 1];
+    if(SUFFIX_CLASS[lt] || DIR_TOKENS[lt] || fusedSplit(lt)) rawToks.pop(); else break;
+  }
+  var base = rawToks.join(" ").toLowerCase() || nameOnly || street;
   var forms = [];
   if(parts.suffix && SUFFIX_FORMS[parts.suffix]){
     forms = SUFFIX_FORMS[parts.suffix].map(function(f){ return (base + " " + f).toUpperCase(); });
@@ -1186,7 +1217,7 @@ function parseAddrInput(raw){
     }
     queries.push(sp.toUpperCase());
   });
-  return { num: m[1], street: street, nameOnly: base, core: streetCoreOf(street), name: parts.name, suffix: parts.suffix, queryForms: forms, queries: queries, nameSet: nameSet };
+  return { num: m[1], street: street, nameOnly: base, core: streetCoreOf(street), name: parts.name, suffix: parts.suffix, dir: parts.dir || "", queryForms: forms, queries: queries, nameSet: nameSet };
 }
 function revCopyButton(r){
   var b = document.createElement("button");
@@ -1314,13 +1345,24 @@ async function runReverse(){
     var u = parseInt(parsed.num, 10);
     return u >= parseInt(rp.num, 10) && u <= parseInt(rp.numEnd, 10);
   }
+  // Directionals (v13): when the user names a direction (Blvd S), the
+  // twin street (Blvd N) is a different street — its same-number house
+  // belongs in the near list, not the answer. When either side omits the
+  // direction, the record still counts: a bare "70 Rolling Meadows"
+  // finds 70 Rolling Meadows Blvd S.
+  function streetOk(rp){
+    return parsed.nameSet.indexOf(rp.name) >= 0 && (!parsed.suffix || rp.suffix === parsed.suffix);
+  }
+  function dirOk(rp){
+    return !parsed.dir || !rp.dir || parsed.dir === rp.dir;
+  }
   function isExact(r){
     var rp = streetPartsOf(r.location);
-    return numHit(rp) && parsed.nameSet.indexOf(rp.name) >= 0 && (!parsed.suffix || rp.suffix === parsed.suffix);
+    return numHit(rp) && streetOk(rp) && dirOk(rp);
   }
   function isNear(r){
     var rp = streetPartsOf(r.location);
-    return !numHit(rp) && parsed.nameSet.indexOf(rp.name) >= 0 && (!parsed.suffix || rp.suffix === parsed.suffix);
+    return streetOk(rp) && !(numHit(rp) && dirOk(rp));
   }
   function maybeNear(r){
     if(!isNear(r)) return;
