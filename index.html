@@ -71,7 +71,7 @@
 </style>
 </head>
 <body>
-<!-- NA Finder v9: reverse search is suffix-aware (Blvd is not Road). Redeploy trigger 3 after GitHub's 2026-11-05 Pages deploy step failed twice. -->
+<!-- NA Finder v10: reverse search also tries a trailing-E spelling variant (county files Romaine Pkwy as ROMAIN). v9 made it suffix-aware (Blvd is not Road). -->
 
 <div class="hero"><h1>🏠 NA Finder</h1><p class="sub">NA: No Address. Letter has a name but no address, or the wrong one? Type the name, check the county owner records, then let the web miner try. Covers your whole delivery area: 07712, Allenhurst (07711) and Deal (07723). It also runs backwards: type an address, get the owner on record.</p></div>
 
@@ -195,7 +195,7 @@
 </div>
 
 <p class="note">Privacy: a photo is read right here on your phone. Nothing is uploaded or stored. The searches open on the sites themselves, same as typing them in by hand.</p>
-<p class="ver">NA Finder v9</p>
+<p class="ver">NA Finder v10</p>
 
 <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
 <script>
@@ -1131,6 +1131,19 @@ function streetPartsOf(str){
   if(toks.length > 1 && SUFFIX_CLASS[toks[toks.length - 1]]){ suf = SUFFIX_CLASS[toks[toks.length - 1]]; toks = toks.slice(0, -1); }
   return { num: num, name: toks.join(" ").toLowerCase(), suffix: suf };
 }
+// The county sometimes files a street under a different spelling than the
+// postal one (verified Nov 7, 2026: the real street is "Romaine Pkwy", the
+// county index has it as ROMAIN — p_loc=ROMAINE returns 0 records in every
+// district, p_loc=ROMAIN returns the street). One cheap variant covers the
+// common class: a trailing E added or dropped. Returns [] when neither
+// direction applies (short names, names ending in a double E, etc.).
+function spellingVariants(name){
+  var n = String(name || "").trim();
+  var lastWord = n.split(/\s+/).pop() || "";
+  if(/e$/i.test(n) && lastWord.length >= 4 && !/ee$/i.test(n)) return [n.slice(0, -1)];
+  if(!/e$/i.test(n) && lastWord.length >= 3) return [n + "E"];
+  return [];
+}
 function parseAddrInput(raw){
   var s = String(raw || "").trim().replace(/\s+/g, " ").replace(/,.*$/, "").trim();
   var m = s.match(/^(\d{1,6})\s+(.+)$/);
@@ -1138,11 +1151,28 @@ function parseAddrInput(raw){
   var street = m[2].replace(/\s+(Apt|Apartment|Unit|Ste|Suite|#)\s*\S+$/i, "").trim();
   var nameOnly = street.replace(/\s+(St|Street|Ave|Avenue|Rd|Road|Ct|Court|Dr|Drive|Ln|Lane|Blvd|Boulevard|Way|Pl|Place|Cir|Circle|Ter|Terrace|Hwy|Highway|Pkwy|Parkway|Trail|Trl|Sq|Square|Loop|Run|Row|Cove|Point|Pt)\.?$/i, "").trim();
   var parts = streetPartsOf(street);
+  var base = nameOnly || street;
   var forms = [];
   if(parts.suffix && SUFFIX_FORMS[parts.suffix]){
-    forms = SUFFIX_FORMS[parts.suffix].map(function(f){ return ((nameOnly || street) + " " + f).toUpperCase(); });
+    forms = SUFFIX_FORMS[parts.suffix].map(function(f){ return (base + " " + f).toUpperCase(); });
   }
-  return { num: m[1], street: street, nameOnly: nameOnly || street, core: streetCoreOf(street), name: parts.name, suffix: parts.suffix, queryForms: forms };
+  // Query ladder (v10): the typed spelling's suffix forms, the typed
+  // spelling bare, then the same ladder for each spelling variant — a
+  // variant is only ever reached when every typed-spelling query came
+  // back empty in that town.
+  var spellings = [base].concat(spellingVariants(base));
+  var queries = [], nameSet = [parts.name];
+  spellings.forEach(function(sp, i){
+    if(i > 0){
+      var vn = streetPartsOf(sp).name;
+      if(nameSet.indexOf(vn) < 0) nameSet.push(vn);
+    }
+    if(parts.suffix && SUFFIX_FORMS[parts.suffix]){
+      SUFFIX_FORMS[parts.suffix].forEach(function(f){ queries.push((sp + " " + f).toUpperCase()); });
+    }
+    queries.push(sp.toUpperCase());
+  });
+  return { num: m[1], street: street, nameOnly: base, core: streetCoreOf(street), name: parts.name, suffix: parts.suffix, queryForms: forms, queries: queries, nameSet: nameSet };
 }
 function revCopyButton(r){
   var b = document.createElement("button");
@@ -1179,6 +1209,12 @@ function renderReverse(current, previous, near, info){
   head.style.cssText = "font-size:15.5px; font-weight:700; margin-top:14px; color:#92400e";
   head.textContent = "🏠 County owner records" + (ownersDataAsOf ? " (county data as of " + ownersDataAsOf + ")" : "");
   box.appendChild(head);
+  if(info.countySpelling){
+    var cs = document.createElement("div");
+    cs.style.cssText = "font-size:13.5px; color:#33415c; margin-top:6px";
+    cs.textContent = "Heads up: the county files this street as “" + info.countySpelling + "” — you typed “" + smartCase(info.typedName) + ".” Same street, their spelling.";
+    box.appendChild(cs);
+  }
   if(!info.answered){
     var n0 = document.createElement("div");
     n0.style.cssText = "font-size:13.5px; color:#33415c; margin-top:6px";
@@ -1243,16 +1279,19 @@ async function runReverse(){
   if(fill) fill.style.width = "0%";
   st.classList.add("working");
   st.textContent = "Walking " + smartCase(parsed.street) + " in the county records, all 7 towns…";
-  var current = [], histAll = [], near = [], seenNear = {}, totalRows = 0, answeredAny = false, capped = false, distDone = 0;
+  var current = [], histAll = [], near = [], seenNear = {}, totalRows = 0, answeredAny = false, capped = false, distDone = 0, countyQuery = "";
   // Exact/near matching respects the street suffix (v9): "83 Park Blvd" must
   // not match "83 Park Road" — compare number + street name + suffix class.
+  // The street name may be the typed spelling or a spelling variant (v10):
+  // the county files "Romaine Pkwy" as ROMAIN, so a record's name counts
+  // when it matches any spelling in parsed.nameSet.
   function isExact(r){
     var rp = streetPartsOf(r.location);
-    return rp.num === parsed.num && rp.name === parsed.name && (!parsed.suffix || rp.suffix === parsed.suffix);
+    return rp.num === parsed.num && parsed.nameSet.indexOf(rp.name) >= 0 && (!parsed.suffix || rp.suffix === parsed.suffix);
   }
   function isNear(r){
     var rp = streetPartsOf(r.location);
-    return rp.num !== parsed.num && rp.name === parsed.name && (!parsed.suffix || rp.suffix === parsed.suffix);
+    return rp.num !== parsed.num && parsed.nameSet.indexOf(rp.name) >= 0 && (!parsed.suffix || rp.suffix === parsed.suffix);
   }
   function maybeNear(r){
     if(!isNear(r)) return;
@@ -1268,6 +1307,12 @@ async function runReverse(){
   // "ROOSEVELT AVE"). Try the typed suffix's stored forms first (small,
   // fast result sets), then fall back to the bare street name with the
   // suffix enforced on-device by isExact/isNear.
+  // The street NAME spelling can differ from the postal one too (v10,
+  // verified Nov 7, 2026: "Romaine Pkwy" is filed as ROMAIN — ROMAINE
+  // returns 0 in all 7 districts). parsed.queries therefore ends each
+  // spelling's ladder with a trailing-E variant (dropped or added), and
+  // isExact/isNear accept any spelling in parsed.nameSet. The hitting
+  // query is remembered so the result can name the county's spelling.
   async function walkQuery(d, srchType, q, sink, seen){
     var anyRows = false;
     for(var page = 1; page <= 6; page++){
@@ -1298,16 +1343,17 @@ async function runReverse(){
   }
   async function walkList(d, srchType, sink){
     var seen = {};
-    var queries = parsed.queryForms.slice();
-    queries.push(parsed.nameOnly.toUpperCase());
-    for(var qi = 0; qi < queries.length; qi++){
-      var got = await walkQuery(d, srchType, queries[qi], sink, seen);
-      if(got) return;
+    for(var qi = 0; qi < parsed.queries.length; qi++){
+      var got = await walkQuery(d, srchType, parsed.queries[qi], sink, seen);
+      if(got) return parsed.queries[qi];
     }
+    return "";
   }
   async function oneDistrict(d){
-    await walkList(d, 1, current);
-    await walkList(d, 2, histAll);
+    var hit = await walkList(d, 1, current);
+    if(hit && !countyQuery) countyQuery = hit;
+    hit = await walkList(d, 2, histAll);
+    if(hit && !countyQuery) countyQuery = hit;
     distDone++;
     if(fill) fill.style.width = Math.round(distDone / OWNER_DISTRICTS.length * 70) + "%";
   }
@@ -1346,7 +1392,19 @@ async function runReverse(){
   if(prog) prog.style.display = "none";
   st.classList.remove("working");
   btn.disabled = false;
-  renderReverse(current, previous, nearSorted, { answered: answeredAny, totalRows: totalRows, capped: capped });
+  // If the street only answered under a variant spelling, surface the
+  // county's spelling so Thomas knows the mail's spelling isn't wrong.
+  var countySpelling = "";
+  if(countyQuery){
+    var cq = countyQuery;
+    if(parsed.suffix && SUFFIX_FORMS[parsed.suffix]){
+      SUFFIX_FORMS[parsed.suffix].forEach(function(f){
+        if(cq.length > f.length + 1 && cq.slice(cq.length - f.length - 1).toUpperCase() === " " + f) cq = cq.slice(0, cq.length - f.length - 1);
+      });
+    }
+    if(cq.toUpperCase() !== parsed.nameOnly.toUpperCase()) countySpelling = cq;
+  }
+  renderReverse(current, previous, nearSorted, { answered: answeredAny, totalRows: totalRows, capped: capped, countySpelling: countySpelling, typedName: parsed.nameOnly });
   if(answeredAny){
     if(current.length){
       st.textContent = "Found the current owner on record" + (previous.length ? ", plus " + previous.length + " earlier owner" + (previous.length > 1 ? "s" : "") + " from the sales records below." : ".") + " Tax records can lag a sale, so sanity-check before you rely on it.";
